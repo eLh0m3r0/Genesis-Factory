@@ -18,3 +18,12 @@ monitor_interval_seconds: 300
 
 # Projects directory
 projects_dir: "~/projects"
+
+# Alert cooldown (seconds) — suppress repeated alerts for same monitor
+alert_cooldown_seconds: 900  # 15 minutes
+
+# Disk space warning threshold (GB free)
+disk_warning_gb: 10
+
+# System health check interval (seconds)
+health_check_interval_seconds: 3600

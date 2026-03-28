@@ -63,3 +63,13 @@ If no argument: pick the highest-priority "ready" story across all projects.
     - Update story status to "done" in BACKLOG.md
     - Record learnings in story's `learnings` field
     - Report to Telegram: "✅ [{STORY-ID}] {title} — merged and deployed"
+
+## Story State Transitions
+
+```
+ready → in_progress → pr_open → done
+                              → stuck  (after 5 Ralph failures)
+                              → rejected (human decision)
+```
+
+Never move stories backwards. A "done" story stays done.

@@ -72,6 +72,7 @@ your first project. Takes about 15 minutes.
 | `/nightly` | Full development cycle (auto-triggered at 22:00) |
 | `/morning-brief` | Status report across all projects |
 | `/status` | Quick factory health check |
+| `/backlog` | Show top stories across all projects |
 | `/retro` | Run retrospective, update learnings |
 | `/upgrade` | Self-improvement cycle on the factory itself |
 | Any text via Telegram | Claude interprets and acts |
@@ -95,7 +96,7 @@ MacBook Air M1 (lid closed, 24/7)
 └── Telegram               ← your phone = remote control
 ```
 
-The **heartbeat** is a tiny Python script (~150 lines, zero LLM calls).
+The **heartbeat** is a lightweight Python daemon (~530 lines, zero LLM calls).
 It's a clock that tells Claude "it's 22:00, time to code" and sensors
 that watch markets/APIs and alert Claude when something needs attention.
 

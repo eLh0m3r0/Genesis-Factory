@@ -30,6 +30,10 @@ tmux send-keys -t factory:claude "cd ~/projects && claude --channels" Enter
 tmux new-window -t factory -n heartbeat
 tmux send-keys -t factory:heartbeat "cd $FACTORY_DIR/heartbeat && python3 factory_heartbeat.py" Enter
 
+tmux new-window -t factory -n docker
+tmux send-keys -t factory:docker "cd $FACTORY_DIR/docker && docker compose logs -f" Enter
+
 echo ""
 echo "✅ Genesis Factory started!"
-echo "   Attach: tmux attach -t factory"
+echo "   Windows: claude | heartbeat | docker"
+echo "   Attach:  tmux attach -t factory"

@@ -18,6 +18,7 @@ git --version         # Any recent
 docker --version      # Docker Desktop
 tmux -V               # tmux
 claude --version      # Claude Code 2.1.80+
+bun --version         # Bun runtime for plugins
 ```
 
 If anything is missing, provide the exact brew/npm install command.
@@ -80,15 +81,11 @@ Test: `gh auth status`
 
 ## Step 5: Docker Services
 
-```bash
-cd ~/.factory 2>/dev/null || mkdir -p ~/.factory
-```
-
-Copy docker-compose.yml from this repo to ~/.factory/.
-Then:
+Start the Docker stack from the genesis-factory repo:
 
 ```bash
-cd ~/.factory && docker compose up -d
+cd /path/to/genesis-factory/docker
+docker compose up -d
 docker compose ps   # verify all running
 ```
 
@@ -135,7 +132,7 @@ cp config.example.yaml config.yaml
 
 Guide them to edit config.yaml with their Telegram bot token and chat ID.
 
-## Step 10b: Playwright MCP (Browser Testing)
+## Step 11: Playwright MCP (Browser Testing)
 
 Install Playwright browsers on the machine:
 
@@ -152,7 +149,7 @@ claude mcp add playwright -- npx @executeautomation/playwright-mcp-server
 Test: ask Claude to "open https://example.com and take a screenshot."
 If it works, Playwright is ready for UAT testing.
 
-## Step 10c: Ralph Plugin (Iterative Loops)
+## Step 12: Ralph Plugin (Iterative Loops)
 
 Install the Ralph Wiggum plugin for autonomous iteration:
 
@@ -165,25 +162,25 @@ Test: `/ralph-loop --help` should show usage.
 Ralph enables Claude to keep working on a story until tests pass,
 automatically retrying and fixing issues.
 
-## Step 11: Start the Factory
+## Step 13: Start the Factory
+
+Use the included startup script:
 
 ```bash
-# Create startup script
-cat > ~/start-factory.sh << 'EOF'
-#!/bin/bash
-tmux new-session -d -s factory -n claude
-tmux send-keys -t factory:claude "cd ~/projects && claude --channels" Enter
-tmux new-window -t factory -n heartbeat
-tmux send-keys -t factory:heartbeat "cd /path/to/genesis-factory/heartbeat && python3 factory_heartbeat.py" Enter
-tmux new-window -t factory -n docker
-tmux send-keys -t factory:docker "cd ~/.factory && docker compose up" Enter
-echo "Factory started! Attach with: tmux attach -t factory"
-EOF
-chmod +x ~/start-factory.sh
-~/start-factory.sh
+cd /path/to/genesis-factory
+./scripts/start.sh
 ```
 
-## Step 12: Verify
+This creates a tmux session with 3 windows: claude, heartbeat, docker.
+
+For auto-start on login, install the LaunchAgent:
+
+```bash
+cp scripts/com.genesis.factory.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.genesis.factory.plist
+```
+
+## Step 14: Verify
 
 1. Send a test message via Telegram → should get response
 2. Run `/status` → should show the new project
