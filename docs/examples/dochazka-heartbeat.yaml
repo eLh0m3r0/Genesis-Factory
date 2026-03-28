@@ -1,0 +1,8 @@
+# Example heartbeat_config.yaml for a web SaaS project
+monitors:
+  - name: production_uptime
+    type: url_health
+    url: https://dochazka.net/health
+  - name: staging_uptime
+    type: url_health
+    url: http://localhost:5001/health

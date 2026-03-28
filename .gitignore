@@ -1,0 +1,22 @@
+# Heartbeat
+heartbeat/config.yaml
+heartbeat/heartbeat.log
+heartbeat/__pycache__/
+
+# Docker
+docker/pgdata/
+
+# Environment
+.env
+*.env.local
+
+# macOS
+.DS_Store
+
+# Node
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+.venv/

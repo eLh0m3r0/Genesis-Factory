@@ -1,0 +1,12 @@
+- matcher: "Bash(pytest*)"
+  hooks:
+    - type: prompt
+      prompt: |
+        If tests failed, analyze the error. Fix imports, DB issues, or assertions.
+        Never skip a failing test. Check AGENTS.md for known patterns first.
+- matcher: "Bash(npx playwright*)"
+  hooks:
+    - type: prompt
+      prompt: |
+        If Playwright timed out, the selector likely changed. Use browser_snapshot
+        to find the correct selector. Check AGENTS.md for known-good selectors.

@@ -1,0 +1,16 @@
+# Example heartbeat_config.yaml for a trading project
+monitors:
+  - name: funding_rates
+    type: http_poll
+    url: https://api.hyperliquid.xyz/info
+    method: POST
+    body: '{"type": "metaAndAssetCtxs"}'
+    alert_condition: "any(abs(float(a.get('funding','0'))) > 0.0005 for a in data[1])"
+    alert_message: "⚡ Funding spike: {details}"
+  - name: account_value
+    type: http_poll
+    url: https://api.hyperliquid.xyz/info
+    method: POST
+    body: '{"type": "clearinghouseState", "user": "${HYPERLIQUID_ADDRESS}"}'
+    alert_condition: "float(data.get('marginSummary',{}).get('accountValue','0')) < 500"
+    alert_message: "🔴 Account below $500: {details}"
