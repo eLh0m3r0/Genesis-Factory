@@ -375,6 +375,21 @@ If Claude Code is not found after 3 consecutive checks (3 minutes), it:
 2. Recreates the tmux session or window if missing.
 3. Restarts the Claude Code session in the tmux window.
 
+### Communication Paths
+
+The factory uses two Telegram paths through the **same bot and chat**:
+
+1. **Channels plugin** (Claude Code ↔ human) — official Telegram plugin started
+   with `claude --channels`. Two-way: human sends commands, Claude responds.
+   Supports permission relay (approve/deny tool calls from phone).
+
+2. **Bot API** (heartbeat → Telegram) — heartbeat uses direct HTTP POST to
+   `api.telegram.org/bot.../sendMessage`. One-way alerts and triggers. Works
+   independently even if the Claude Code session is down.
+
+Both use the same `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`. Claude Code
+sees heartbeat messages arriving through Channels and reacts to them.
+
 ### Pause Mechanism
 
 The heartbeat checks for `~/projects/.factory_paused` before each trigger.

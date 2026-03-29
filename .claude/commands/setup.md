@@ -130,7 +130,9 @@ pip3 install -r requirements.txt
 cp config.example.yaml config.yaml
 ```
 
-Guide them to edit config.yaml with their Telegram bot token and chat ID.
+Guide them to edit config.yaml with the **same bot token from Step 3**.
+Both Claude Code Channels and the heartbeat use the same bot — one bot,
+one chat. Channels handles two-way conversation, heartbeat sends alerts.
 
 ## Step 11: Playwright MCP (Browser Testing)
 
