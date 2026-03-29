@@ -3,11 +3,13 @@
 <plist version="1.0">
 <!--
   Genesis Factory — Auto-start on login.
-  
-  Install:
-    cp scripts/com.genesis.factory.plist ~/Library/LaunchAgents/
+
+  Install (update the path first!):
+    FACTORY_DIR="$HOME/genesis-factory"
+    sed "s|__FACTORY_DIR__|$FACTORY_DIR|g" scripts/com.genesis.factory.plist > /tmp/gf.plist
+    cp /tmp/gf.plist ~/Library/LaunchAgents/com.genesis.factory.plist
     launchctl load ~/Library/LaunchAgents/com.genesis.factory.plist
-  
+
   Uninstall:
     launchctl unload ~/Library/LaunchAgents/com.genesis.factory.plist
     rm ~/Library/LaunchAgents/com.genesis.factory.plist
@@ -18,9 +20,10 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
+        <string>-l</string>
         <string>-c</string>
-        <!-- Update this path to where you cloned genesis-factory -->
-        <string>$HOME/genesis-factory/scripts/start.sh</string>
+        <!-- __FACTORY_DIR__ is replaced during install (see instructions above) -->
+        <string>__FACTORY_DIR__/scripts/start.sh</string>
     </array>
     <key>RunAtLoad</key>
     <true/>

@@ -35,8 +35,9 @@ pytest test_heartbeat.py -v
 
 ### Heartbeat
 - Edit `heartbeat/factory_heartbeat.py`
-- Run tests: `pytest test_heartbeat.py -v`
+- Run tests: `pytest test_heartbeat.py -v` (48 tests)
 - Heartbeat changes require manual restart of the daemon
+- Test config in `conftest.py` uses a fake Telegram token — update if you change token validation
 
 ### Adding a New Command
 1. Create `.claude/commands/your-command.md` with YAML frontmatter

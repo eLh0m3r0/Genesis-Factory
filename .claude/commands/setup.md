@@ -162,7 +162,20 @@ Test: `/ralph-loop --help` should show usage.
 Ralph enables Claude to keep working on a story until tests pass,
 automatically retrying and fixing issues.
 
-## Step 13: Start the Factory
+## Step 13: Enable Auto Mode
+
+Auto Mode lets Claude execute safe actions automatically while blocking
+genuinely risky operations. Essential for autonomous nightly cycles.
+
+```bash
+claude --enable-auto-mode
+```
+
+Then cycle permission modes with Shift+Tab until Auto Mode is active.
+Auto Mode uses a safety classifier AI to review each tool call — safe actions
+(file reads/writes, git, tests) proceed automatically, risky ones are blocked.
+
+## Step 14: Start the Factory
 
 Use the included startup script:
 
@@ -176,11 +189,13 @@ This creates a tmux session with 3 windows: claude, heartbeat, docker.
 For auto-start on login, install the LaunchAgent:
 
 ```bash
-cp scripts/com.genesis.factory.plist ~/Library/LaunchAgents/
+FACTORY_DIR="$(pwd)"
+sed "s|__FACTORY_DIR__|$FACTORY_DIR|g" scripts/com.genesis.factory.plist > /tmp/gf.plist
+cp /tmp/gf.plist ~/Library/LaunchAgents/com.genesis.factory.plist
 launchctl load ~/Library/LaunchAgents/com.genesis.factory.plist
 ```
 
-## Step 14: Verify
+## Step 15: Verify
 
 1. Send a test message via Telegram → should get response
 2. Run `/status` → should show the new project

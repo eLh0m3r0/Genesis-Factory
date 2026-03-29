@@ -98,11 +98,24 @@ MacBook Air M1 (lid closed, 24/7)
 └── Telegram               ← your phone = remote control
 ```
 
-The **heartbeat** is a lightweight Python daemon (~600 lines, zero LLM calls).
+The **heartbeat** is a lightweight Python daemon (~660 lines, zero LLM calls).
 It's a clock that tells Claude "it's 22:00, time to code" and sensors
 that watch markets/APIs and alert Claude when something needs attention.
 
 All intelligence lives in Claude Code — the heartbeat just provides triggers.
+
+## Key Claude Code Features Used
+
+| Feature | What |
+|---------|------|
+| **Channels** | Official Telegram plugin — two-way messaging, permission relay from phone |
+| **Agent Teams** | Lead + Dev + Test teammates working in parallel worktrees |
+| **Auto Mode** | Safety classifier approves safe actions, blocks risky ones |
+| **Effort levels** | `/effort medium` for routine, `/effort high` for complex tasks |
+| **`/loop`** | Recurring in-session checks (e.g., `/loop 5m check deploy`) |
+| **Scheduled Tasks** | Cloud-based backup crons when MacBook is offline |
+| **Computer Use** | Visual verification of deployed web apps |
+| **Playwright MCP** | Structured browser testing with screenshots |
 
 ## Daily Rhythm
 

@@ -139,38 +139,63 @@ class TestAlertCooldown:
     """Test alert deduplication logic."""
 
     def test_first_alert_allowed(self):
-        from factory_heartbeat import _should_alert, _alert_state
+        from factory_heartbeat import _should_alert, _alert_state, _service_down
         _alert_state.clear()
+        _service_down.clear()
         assert _should_alert("test:first") is True
 
     def test_repeated_alert_blocked(self):
-        from factory_heartbeat import _should_alert, _record_alert, _alert_state
+        from factory_heartbeat import _should_alert, _record_alert, _alert_state, _service_down
         _alert_state.clear()
+        _service_down.clear()
         _record_alert("test:repeated")
         assert _should_alert("test:repeated") is False
 
     def test_alert_after_cooldown(self):
-        from factory_heartbeat import _should_alert, _alert_state, ALERT_COOLDOWN
+        from factory_heartbeat import _should_alert, _alert_state, _service_down, ALERT_COOLDOWN
         _alert_state.clear()
+        _service_down.clear()
         _alert_state["test:expired"] = datetime.now() - timedelta(
             seconds=ALERT_COOLDOWN + 1
         )
         assert _should_alert("test:expired") is True
 
     def test_different_monitors_independent(self):
-        from factory_heartbeat import _should_alert, _record_alert, _alert_state
+        from factory_heartbeat import _should_alert, _record_alert, _alert_state, _service_down
         _alert_state.clear()
+        _service_down.clear()
         _record_alert("test:monitorA")
         assert _should_alert("test:monitorA") is False
         assert _should_alert("test:monitorB") is True
 
     def test_record_updates_timestamp(self):
-        from factory_heartbeat import _record_alert, _alert_state
+        from factory_heartbeat import _record_alert, _alert_state, _service_down
         _alert_state.clear()
+        _service_down.clear()
         _record_alert("test:ts")
         t1 = _alert_state["test:ts"]
         assert isinstance(t1, datetime)
         assert (datetime.now() - t1).total_seconds() < 2
+
+    def test_record_alert_marks_service_down(self):
+        from factory_heartbeat import _record_alert, _service_down
+        _service_down.clear()
+        _record_alert("test:down")
+        assert "test:down" in _service_down
+
+    def test_record_recovery_returns_true_if_was_down(self):
+        from factory_heartbeat import _record_alert, _record_recovery, _alert_state, _service_down
+        _alert_state.clear()
+        _service_down.clear()
+        _record_alert("test:recover")
+        assert _record_recovery("test:recover") is True
+        assert "test:recover" not in _service_down
+        assert "test:recover" not in _alert_state
+
+    def test_record_recovery_returns_false_if_was_up(self):
+        from factory_heartbeat import _record_recovery, _service_down
+        _service_down.clear()
+        assert _record_recovery("test:never_down") is False
 
 
 class TestPauseFlag:
@@ -223,6 +248,17 @@ class TestMonitorTypeValidation:
         monitor = {"type": "invalid_type", "name": "test"}
         run_single_monitor(monitor, "test_project")  # no exception
 
+    def test_missing_url_does_not_crash(self):
+        from factory_heartbeat import run_single_monitor
+        # Missing 'url' field for http_poll — should log error, not KeyError
+        monitor = {"type": "http_poll", "name": "test_no_url"}
+        run_single_monitor(monitor, "test_project")  # no exception
+
+    def test_missing_url_health_does_not_crash(self):
+        from factory_heartbeat import run_single_monitor
+        monitor = {"type": "url_health", "name": "test_no_url"}
+        run_single_monitor(monitor, "test_project")  # no exception
+
 
 class TestConstants:
     """Test that named constants are defined."""
@@ -240,6 +276,43 @@ class TestConstants:
         assert SUBPROCESS_TIMEOUT == 5
         assert HTTP_TIMEOUT_POLL == 15
         assert HTTP_TIMEOUT_HEALTH == 10
+
+
+class TestLogSanitization:
+    """Test sensitive data is stripped from log output."""
+
+    def test_strips_api_key(self):
+        from factory_heartbeat import _sanitize_log_data
+        text = '{"api_key": "sk-1234567890", "data": "ok"}'
+        result = _sanitize_log_data(text)
+        assert "sk-1234567890" not in result
+
+    def test_strips_token(self):
+        from factory_heartbeat import _sanitize_log_data
+        text = '{"token": "secret123", "value": 42}'
+        result = _sanitize_log_data(text)
+        assert "secret123" not in result
+
+    def test_truncates_long_output(self):
+        from factory_heartbeat import _sanitize_log_data
+        text = "x" * 500
+        result = _sanitize_log_data(text)
+        assert len(result) <= 200
+
+    def test_preserves_safe_data(self):
+        from factory_heartbeat import _sanitize_log_data
+        text = '{"rate": 0.5, "status": "ok"}'
+        result = _sanitize_log_data(text)
+        assert "rate" in result
+        assert "status" in result
+
+
+class TestGracefulShutdown:
+    """Test graceful shutdown flag."""
+
+    def test_shutdown_flag_exists(self):
+        from factory_heartbeat import _shutdown
+        assert _shutdown is False
 
 
 class TestASTValidation:

@@ -25,3 +25,18 @@ you get one alert per 15 minutes, not one every 5 minutes. Recovery is notified 
 
 **Disk full?** The heartbeat monitors disk space hourly and alerts via Telegram
 when free space drops below the configured threshold (default 10 GB).
+
+**Channels vs custom Telegram bot?** The factory uses both. Claude Code Channels
+is the official Telegram plugin for two-way communication (commands, permission
+relay from phone). The heartbeat daemon uses the Telegram Bot API directly for
+alerts and triggers — this works independently, even when Claude Code is down.
+Both use the same bot token.
+
+**Auto Mode?** Auto Mode replaces manual permission approvals for nightly cycles.
+A safety classifier AI reviews each tool call — safe actions (file reads/writes,
+git, tests) proceed automatically, risky ones are blocked. Enable with
+`claude --enable-auto-mode`.
+
+**What about /loop?** Use `/loop 5m check deploy status` for recurring in-session
+checks. It complements the heartbeat — `/loop` runs inside Claude Code with full
+tool access, while the heartbeat runs independently as a Python daemon.

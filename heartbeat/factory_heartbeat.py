@@ -13,6 +13,7 @@ Requirements: pip install schedule requests pyyaml
 
 import ast
 import os
+import re
 import sys
 import time
 import json
@@ -54,7 +55,11 @@ def load_config():
         log.error("Copy config.example.yaml to config.yaml and fill in values.")
         sys.exit(1)
     with open(CONFIG_PATH) as f:
-        return yaml.safe_load(f)
+        try:
+            return yaml.safe_load(f)
+        except yaml.YAMLError as e:
+            log.error(f"Invalid YAML in {CONFIG_PATH}: {e}")
+            sys.exit(1)
 
 
 config = load_config()
@@ -71,6 +76,13 @@ TELEGRAM_CHAT_ID = (
 
 if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
     log.error("Telegram bot_token and chat_id required in config.yaml or env.")
+    sys.exit(1)
+
+if ":" not in TELEGRAM_TOKEN or len(TELEGRAM_TOKEN) < 20:
+    log.error(
+        f"TELEGRAM_BOT_TOKEN looks invalid (expected format: 123456789:ABCdef...)."
+        f" Got: {TELEGRAM_TOKEN[:8]}..."
+    )
     sys.exit(1)
 
 ALERT_COOLDOWN = config.get("alert_cooldown_seconds", 900)  # 15 min default
@@ -243,6 +255,7 @@ def trigger_retro():
 # ---------------------------------------------------------------------------
 
 _alert_state = {}  # monitor_key -> last alert datetime
+_service_down = set()  # monitor_keys currently in "down" state
 
 
 def _should_alert(monitor_key):
@@ -256,6 +269,15 @@ def _should_alert(monitor_key):
 def _record_alert(monitor_key):
     """Record that an alert was sent for this monitor."""
     _alert_state[monitor_key] = datetime.now()
+    _service_down.add(monitor_key)
+
+
+def _record_recovery(monitor_key):
+    """Record that a service recovered. Returns True if it was previously down."""
+    was_down = monitor_key in _service_down
+    _service_down.discard(monitor_key)
+    _alert_state.pop(monitor_key, None)
+    return was_down
 
 
 # ---------------------------------------------------------------------------
@@ -292,11 +314,26 @@ def run_monitors():
                 log.error(f"Monitor '{monitor.get('name')}' error: {e}")
 
 
+def _sanitize_log_data(text, max_len=200):
+    """Truncate and strip potential secrets from log output."""
+    text = str(text)[:max_len]
+    return re.sub(
+        r'(?i)(api[_-]?key|token|secret|password|authorization)["\s:=]+\S+',
+        r'\1=***',
+        text,
+    )
+
+
 def run_single_monitor(monitor, project_name):
     """Execute a single monitor check with alert cooldown."""
     monitor_type = monitor.get("type", "http_poll")
     name = monitor.get("name", "unnamed")
     monitor_key = f"{project_name}:{name}"
+
+    # Validate required fields
+    if monitor_type in ("http_poll", "url_health") and "url" not in monitor:
+        log.error(f"Monitor '{name}' in {project_name}: missing 'url' field")
+        return
 
     if monitor_type == "http_poll":
         url = monitor["url"]
@@ -306,7 +343,6 @@ def run_single_monitor(monitor, project_name):
 
         # Expand only explicitly referenced environment variables
         if body and "${" in body:
-            import re
             for var_name in re.findall(r'\$\{(\w+)\}', body):
                 val = os.environ.get(var_name)
                 if val is not None:
@@ -315,6 +351,13 @@ def run_single_monitor(monitor, project_name):
                     log.warning(
                         f"Monitor '{name}': env var ${{{var_name}}} not set"
                     )
+            # Fail-fast if any env vars remain unresolved
+            unresolved = re.findall(r'\$\{(\w+)\}', body)
+            if unresolved:
+                log.error(
+                    f"Monitor '{name}': unresolved env vars: {unresolved}"
+                )
+                return
 
         try:
             if method == "POST":
@@ -366,7 +409,7 @@ def run_single_monitor(monitor, project_name):
 
             if should_fire and _should_alert(monitor_key):
                 alert_msg = monitor.get("alert_message", f"Alert from {name}")
-                details = str(data)[:200] if data else str(resp.status_code)
+                details = _sanitize_log_data(data) if data else str(resp.status_code)
                 alert_msg = alert_msg.replace("{details}", details)
                 send_telegram(f"[{project_name}] {alert_msg}")
                 _record_alert(monitor_key)
@@ -383,12 +426,11 @@ def run_single_monitor(monitor, project_name):
                     )
                     _record_alert(monitor_key)
             else:
-                # Service recovered — clear alert state and notify
-                if monitor_key in _alert_state:
+                # Service recovered — notify if it was previously down
+                if _record_recovery(monitor_key):
                     send_telegram(
                         f"[{project_name}] ✅ {name}: recovered ({url})"
                     )
-                    del _alert_state[monitor_key]
         except requests.ConnectionError:
             if _should_alert(monitor_key):
                 send_telegram(
@@ -428,7 +470,10 @@ def check_system_health():
                 )
                 _record_alert(monitor_key)
         else:
-            _alert_state.pop(monitor_key, None)
+            if _record_recovery(monitor_key):
+                send_telegram(
+                    f"✅ Disk space recovered: {free_gb:.1f} GB free"
+                )
     except Exception as e:
         log.error(f"System health check error: {e}")
 
@@ -574,10 +619,13 @@ schedule.every(60).seconds.do(watchdog_check)
 # ---------------------------------------------------------------------------
 
 
+_shutdown = False
+
+
 def handle_signal(sig, frame):
-    log.info("Shutting down heartbeat...")
-    send_telegram("💤 Heartbeat shutting down.")
-    sys.exit(0)
+    global _shutdown
+    log.info("Shutdown signal received, finishing current work...")
+    _shutdown = True
 
 
 signal.signal(signal.SIGINT, handle_signal)
@@ -596,12 +644,16 @@ def main():
 
     send_telegram("🏭 Genesis Factory Heartbeat started. All systems nominal.")
 
-    while True:
+    while not _shutdown:
         try:
             schedule.run_pending()
         except Exception as e:
             log.error(f"Schedule error: {e}")
         time.sleep(30)
+
+    log.info("Shutting down heartbeat...")
+    send_telegram("💤 Heartbeat shutting down.")
+    sys.exit(0)
 
 
 if __name__ == "__main__":

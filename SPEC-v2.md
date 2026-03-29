@@ -20,7 +20,7 @@ The system consists of three components:
    Auto Mode for safe autonomous execution, and Computer Use for visual tasks.
 
 2. **Heartbeat daemon** — the clock and sensors. A lightweight Python process
-   (~600 lines, zero LLM calls) that sends scheduled triggers and monitoring
+   (~660 lines, zero LLM calls) that sends scheduled triggers and monitoring
    alerts to Claude Code via Telegram. Includes a watchdog that restarts Claude
    Code if the session crashes.
 
@@ -325,7 +325,7 @@ Commands are markdown files in `.claude/commands/` that Claude Code exposes as
 
 ### Purpose
 
-A lightweight Python process (~600 lines) that provides four functions:
+A lightweight Python process (~660 lines) that provides four functions:
 
 1. **Clock** — sends scheduled triggers to Claude Code via Telegram at configured times.
 2. **Sensors** — polls external APIs/URLs per project configuration and alerts Claude
@@ -618,11 +618,17 @@ Code written by agent
 - **Rate limit awareness.** Factory uses Sonnet for subagents to conserve tokens.
   Reports to Telegram if rate-limited.
 - **Docker isolation.** Staging apps run in containers with limited host access.
-- **Heartbeat is minimal.** ~600 lines, no LLM, negligible attack surface.
+- **Heartbeat is minimal.** ~650 lines, no LLM, negligible attack surface.
   Monitor alert conditions use AST-validated safe evaluation — no raw `eval()`.
+  Log output is sanitized to strip API keys, tokens, and secrets.
+- **Input validation.** Telegram token format is validated at startup. Monitor
+  configs are checked for required fields. Unresolved env vars in monitor bodies
+  are caught before sending requests.
 - **Pause capability.** `/pause` stops all automation immediately.
 - **Alert cooldown.** Monitor alerts are deduplicated with configurable cooldown
   to prevent notification storms when a service is down.
+- **Graceful shutdown.** Signal handlers set a shutdown flag instead of
+  immediately exiting, allowing in-progress work to complete.
 
 ### Risk Mitigation
 
@@ -725,6 +731,8 @@ The $100 Max plan has generous but finite token limits. The factory optimizes:
 genesis-factory/
 │
 ├── README.md                          # Product landing page, quickstart
+├── VERSION                            # Semantic version (e.g. 0.5.0)
+├── CONTRIBUTING.md                    # How to contribute
 ├── LICENSE                            # MIT
 ├── .gitignore
 │
@@ -742,7 +750,7 @@ genesis-factory/
 │   │
 │   ├── commands/
 │   │   ├── setup.md                   # /setup — guided onboarding
-│   │   ├── new-project.md             # /new — create project from template
+│   │   ├── new-project.md             # /new-project — create project from template
 │   │   ├── discover.md                # /discover — research + generate stories
 │   │   ├── build.md                   # /build — full dev cycle for one story
 │   │   ├── nightly.md                 # /nightly — autonomous nightly cycle
@@ -758,7 +766,7 @@ genesis-factory/
 │       └── post-tool-use.yaml         # Auto-fix for pytest/Playwright failures
 │
 ├── heartbeat/
-│   ├── factory_heartbeat.py           # Main daemon (~600 lines, zero LLM)
+│   ├── factory_heartbeat.py           # Main daemon (~660 lines, zero LLM)
 │   ├── config.example.yaml            # Template configuration
 │   ├── requirements.txt               # schedule, requests, pyyaml
 │   ├── test_heartbeat.py              # Unit tests (safe_eval, cooldown, pause)
@@ -880,7 +888,7 @@ Telegram: ───── always listening ─────
 | Visual Verification | Computer Use | Desktop interaction, visual checks |
 | Safe Autonomy | Auto Mode | AI-judged permission decisions |
 | Cloud Backup | Scheduled Tasks | Critical crons when machine offline |
-| Orchestration | Python heartbeat (~600 lines) | Clock + sensors + watchdog |
+| Orchestration | Python heartbeat (~660 lines) | Clock + sensors + watchdog |
 | Infrastructure | Docker (PostgreSQL, staging apps) | Database and service isolation |
 | Version Control | Git + GitHub | Repos, PRs, CI/CD, auto-merge |
 | CI/CD | GitHub Actions | Build, test, deploy pipelines |

@@ -11,7 +11,7 @@ def pytest_configure():
     global _config_path
     config_content = """\
 telegram:
-  bot_token: "test_token_for_testing"
+  bot_token: "123456789:ABCdefGHIjklMNO_test"
   chat_id: "123456789"
 projects_dir: "/tmp/genesis_test_projects"
 alert_cooldown_seconds: 60
