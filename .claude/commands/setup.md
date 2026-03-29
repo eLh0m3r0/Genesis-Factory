@@ -13,7 +13,7 @@ Run these checks and report status:
 
 ```bash
 node --version        # Need 20+
-python3 --version     # Need 3.10+
+python3 --version     # Need 3.12+
 git --version         # Any recent
 docker --version      # Docker Desktop
 tmux -V               # tmux

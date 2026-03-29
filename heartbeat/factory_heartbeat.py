@@ -77,6 +77,13 @@ ALERT_COOLDOWN = config.get("alert_cooldown_seconds", 900)  # 15 min default
 DISK_WARNING_GB = config.get("disk_warning_gb", 10)
 PAUSE_FILE = os.path.join(PROJECTS_DIR, ".factory_paused")
 
+# Watchdog constants
+WATCHDOG_FAILURE_THRESHOLD = 3
+WATCHDOG_MAX_RESTARTS_PER_HOUR = 5
+SUBPROCESS_TIMEOUT = 5
+HTTP_TIMEOUT_POLL = 15
+HTTP_TIMEOUT_HEALTH = 10
+
 
 def is_paused():
     """Check if factory is paused via flag file."""
@@ -297,25 +304,56 @@ def run_single_monitor(monitor, project_name):
         body = monitor.get("body")
         headers = monitor.get("headers", {"Content-Type": "application/json"})
 
-        # Expand environment variables in body
+        # Expand only explicitly referenced environment variables
         if body and "${" in body:
-            for key, val in os.environ.items():
-                body = body.replace(f"${{{key}}}", val)
+            import re
+            for var_name in re.findall(r'\$\{(\w+)\}', body):
+                val = os.environ.get(var_name)
+                if val is not None:
+                    body = body.replace(f"${{{var_name}}}", val)
+                else:
+                    log.warning(
+                        f"Monitor '{name}': env var ${{{var_name}}} not set"
+                    )
 
-        if method == "POST":
-            resp = requests.post(url, data=body, headers=headers, timeout=15)
-        else:
-            resp = requests.get(url, headers=headers, timeout=15)
+        try:
+            if method == "POST":
+                resp = requests.post(
+                    url, data=body, headers=headers, timeout=HTTP_TIMEOUT_POLL
+                )
+            else:
+                resp = requests.get(
+                    url, headers=headers, timeout=HTTP_TIMEOUT_POLL
+                )
+        except requests.ConnectionError:
+            if _should_alert(monitor_key):
+                send_telegram(
+                    f"[{project_name}] 🔴 {name}: Connection failed to {url}"
+                )
+                _record_alert(monitor_key)
+            return
+        except requests.Timeout:
+            if _should_alert(monitor_key):
+                send_telegram(
+                    f"[{project_name}] 🔴 {name}: Timeout reaching {url}"
+                )
+                _record_alert(monitor_key)
+            return
 
         alert_condition = monitor.get("alert_condition", "")
         if alert_condition:
-            data = (
-                resp.json()
-                if resp.headers.get("content-type", "").startswith(
-                    "application/json"
+            try:
+                data = (
+                    resp.json()
+                    if resp.headers.get("content-type", "").startswith(
+                        "application/json"
+                    )
+                    else None
                 )
-                else None
-            )
+            except (ValueError, TypeError):
+                log.warning(f"Monitor '{name}': invalid JSON response")
+                data = None
+
             response = resp
 
             try:
@@ -336,7 +374,7 @@ def run_single_monitor(monitor, project_name):
     elif monitor_type == "url_health":
         url = monitor["url"]
         try:
-            resp = requests.get(url, timeout=10)
+            resp = requests.get(url, timeout=HTTP_TIMEOUT_HEALTH)
             if resp.status_code != 200:
                 if _should_alert(monitor_key):
                     send_telegram(
@@ -363,6 +401,12 @@ def run_single_monitor(monitor, project_name):
                     f"[{project_name}] 🔴 {name}: Timeout reaching {url}"
                 )
                 _record_alert(monitor_key)
+
+    else:
+        log.warning(
+            f"Monitor '{name}' in {project_name}: "
+            f"unknown type '{monitor_type}' (expected http_poll or url_health)"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -394,44 +438,48 @@ def check_system_health():
 # ---------------------------------------------------------------------------
 
 _watchdog_failures = 0
+_watchdog_restarts = []  # timestamps of recent restarts
 
 
 def watchdog_check():
     """
     Check if Claude Code session is alive in the factory tmux session.
     If missing for 3+ consecutive checks (~3 minutes), restart it.
+    Limits restarts to WATCHDOG_MAX_RESTARTS_PER_HOUR to avoid loops.
     """
     global _watchdog_failures
 
     try:
         session_check = subprocess.run(
             ["tmux", "has-session", "-t", "factory"],
-            capture_output=True, timeout=5,
+            capture_output=True, timeout=SUBPROCESS_TIMEOUT,
         )
         if session_check.returncode != 0:
             _watchdog_failures += 1
             log.warning(
-                f"Factory tmux session not found "
+                f"tmux session 'factory' not found "
                 f"(failure #{_watchdog_failures})"
             )
-            if _watchdog_failures >= 3:
+            if _watchdog_failures >= WATCHDOG_FAILURE_THRESHOLD:
                 _restart_claude_code(session_exists=False)
             return
 
         result = subprocess.run(
             ["tmux", "list-windows", "-t", "factory"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True, text=True, timeout=SUBPROCESS_TIMEOUT,
         )
         if "claude" not in result.stdout:
             _watchdog_failures += 1
             log.warning(
-                f"Claude Code window not found "
+                f"Claude Code window not found in tmux "
                 f"(failure #{_watchdog_failures})"
             )
-            if _watchdog_failures >= 3:
+            if _watchdog_failures >= WATCHDOG_FAILURE_THRESHOLD:
                 _restart_claude_code(session_exists=True)
         else:
             _watchdog_failures = 0
+    except subprocess.TimeoutExpired:
+        log.error("Watchdog: tmux command timed out")
     except Exception as e:
         log.error(f"Watchdog error: {e}")
 
@@ -439,23 +487,44 @@ def watchdog_check():
 def _restart_claude_code(session_exists=True):
     """Restart Claude Code in the factory tmux session."""
     global _watchdog_failures
+
+    # Rate-limit restarts to prevent infinite loops
+    now = datetime.now()
+    cutoff = now - timedelta(hours=1)
+    _watchdog_restarts[:] = [t for t in _watchdog_restarts if t > cutoff]
+
+    if len(_watchdog_restarts) >= WATCHDOG_MAX_RESTARTS_PER_HOUR:
+        log.error(
+            f"Watchdog: {WATCHDOG_MAX_RESTARTS_PER_HOUR} restarts in the last "
+            f"hour — backing off. Manual intervention needed."
+        )
+        if _should_alert("watchdog:restart_limit"):
+            send_telegram(
+                f"🔴 Claude Code restart limit reached "
+                f"({WATCHDOG_MAX_RESTARTS_PER_HOUR}/hour). "
+                f"Manual restart needed."
+            )
+            _record_alert("watchdog:restart_limit")
+        _watchdog_failures = 0
+        return
+
     log.error("Claude Code session dead — restarting...")
 
     try:
         if not session_exists:
             subprocess.run(
                 ["tmux", "new-session", "-d", "-s", "factory", "-n", "claude"],
-                timeout=5,
+                timeout=SUBPROCESS_TIMEOUT,
             )
         else:
             result = subprocess.run(
                 ["tmux", "list-windows", "-t", "factory"],
-                capture_output=True, text=True, timeout=5,
+                capture_output=True, text=True, timeout=SUBPROCESS_TIMEOUT,
             )
             if "claude" not in result.stdout:
                 subprocess.run(
                     ["tmux", "new-window", "-t", "factory", "-n", "claude"],
-                    timeout=5,
+                    timeout=SUBPROCESS_TIMEOUT,
                 )
 
         subprocess.run(
@@ -463,10 +532,13 @@ def _restart_claude_code(session_exists=True):
                 "tmux", "send-keys", "-t", "factory:claude",
                 f"cd {PROJECTS_DIR} && claude --channels", "Enter",
             ],
-            timeout=5,
+            timeout=SUBPROCESS_TIMEOUT,
         )
         send_telegram("🔧 Claude Code session crashed. Restarting...")
         _watchdog_failures = 0
+        _watchdog_restarts.append(now)
+    except subprocess.TimeoutExpired:
+        log.error("Restart failed: tmux command timed out")
     except Exception as e:
         log.error(f"Failed to restart Claude Code: {e}")
 

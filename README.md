@@ -75,6 +75,8 @@ your first project. Takes about 15 minutes.
 | `/backlog` | Show top stories across all projects |
 | `/retro` | Run retrospective, update learnings |
 | `/upgrade` | Self-improvement cycle on the factory itself |
+| `/pause` | Pause all automated cycles |
+| `/resume` | Resume automated cycles |
 | Any text via Telegram | Claude interprets and acts |
 
 ## Architecture
@@ -96,7 +98,7 @@ MacBook Air M1 (lid closed, 24/7)
 └── Telegram               ← your phone = remote control
 ```
 
-The **heartbeat** is a lightweight Python daemon (~530 lines, zero LLM calls).
+The **heartbeat** is a lightweight Python daemon (~600 lines, zero LLM calls).
 It's a clock that tells Claude "it's 22:00, time to code" and sensors
 that watch markets/APIs and alert Claude when something needs attention.
 

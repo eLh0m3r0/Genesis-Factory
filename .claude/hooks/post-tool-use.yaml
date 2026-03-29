@@ -2,11 +2,18 @@
   hooks:
     - type: prompt
       prompt: |
-        If tests failed, analyze the error. Fix imports, DB issues, or assertions.
-        Never skip a failing test. Check AGENTS.md for known patterns first.
+        If tests failed, analyze the error. Common causes:
+        - Missing imports or dependencies
+        - Database not running or migrations not applied
+        - Incorrect assertions or test data
+        Never skip a failing test. Check the project's AGENTS.md for known
+        failure patterns and fixes specific to this project.
 - matcher: "Bash(npx playwright*)"
   hooks:
     - type: prompt
       prompt: |
-        If Playwright timed out, the selector likely changed. Use browser_snapshot
-        to find the correct selector. Check AGENTS.md for known-good selectors.
+        If Playwright timed out, the selector likely changed. Steps:
+        1. Use browser_snapshot to get current page accessibility tree
+        2. Find the correct selector (prefer role/label over CSS)
+        3. Check the project's AGENTS.md for known-good selectors
+        4. Update AGENTS.md with the new selector if you find a better one

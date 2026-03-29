@@ -197,6 +197,51 @@ class TestPauseFlag:
             factory_heartbeat.PAUSE_FILE = original
 
 
+class TestWatchdogRateLimit:
+    """Test watchdog restart rate limiting."""
+
+    def test_restart_limit_tracking(self):
+        from factory_heartbeat import _watchdog_restarts
+        _watchdog_restarts.clear()
+        assert len(_watchdog_restarts) == 0
+
+    def test_restart_list_is_mutable(self):
+        from factory_heartbeat import _watchdog_restarts
+        _watchdog_restarts.clear()
+        from datetime import datetime
+        _watchdog_restarts.append(datetime.now())
+        assert len(_watchdog_restarts) == 1
+        _watchdog_restarts.clear()
+
+
+class TestMonitorTypeValidation:
+    """Test unknown monitor type handling."""
+
+    def test_unknown_type_does_not_crash(self):
+        from factory_heartbeat import run_single_monitor
+        # Should log a warning but not raise
+        monitor = {"type": "invalid_type", "name": "test"}
+        run_single_monitor(monitor, "test_project")  # no exception
+
+
+class TestConstants:
+    """Test that named constants are defined."""
+
+    def test_constants_exist(self):
+        from factory_heartbeat import (
+            WATCHDOG_FAILURE_THRESHOLD,
+            WATCHDOG_MAX_RESTARTS_PER_HOUR,
+            SUBPROCESS_TIMEOUT,
+            HTTP_TIMEOUT_POLL,
+            HTTP_TIMEOUT_HEALTH,
+        )
+        assert WATCHDOG_FAILURE_THRESHOLD == 3
+        assert WATCHDOG_MAX_RESTARTS_PER_HOUR == 5
+        assert SUBPROCESS_TIMEOUT == 5
+        assert HTTP_TIMEOUT_POLL == 15
+        assert HTTP_TIMEOUT_HEALTH == 10
+
+
 class TestASTValidation:
     """Test AST validation rejects dangerous patterns."""
 

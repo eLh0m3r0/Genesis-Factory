@@ -19,3 +19,4 @@
 - Competitor A: https://...
 
 ## project_weight: 1
+<!-- Scale 1-5: 1=low priority, 3=default, 5=critical. Used to rank stories across projects. -->

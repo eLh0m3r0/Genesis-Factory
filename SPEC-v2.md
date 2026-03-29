@@ -20,7 +20,7 @@ The system consists of three components:
    Auto Mode for safe autonomous execution, and Computer Use for visual tasks.
 
 2. **Heartbeat daemon** — the clock and sensors. A lightweight Python process
-   (~530 lines, zero LLM calls) that sends scheduled triggers and monitoring
+   (~600 lines, zero LLM calls) that sends scheduled triggers and monitoring
    alerts to Claude Code via Telegram. Includes a watchdog that restarts Claude
    Code if the session crashes.
 
@@ -325,7 +325,7 @@ Commands are markdown files in `.claude/commands/` that Claude Code exposes as
 
 ### Purpose
 
-A lightweight Python process (~530 lines) that provides four functions:
+A lightweight Python process (~600 lines) that provides four functions:
 
 1. **Clock** — sends scheduled triggers to Claude Code via Telegram at configured times.
 2. **Sensors** — polls external APIs/URLs per project configuration and alerts Claude
@@ -618,7 +618,7 @@ Code written by agent
 - **Rate limit awareness.** Factory uses Sonnet for subagents to conserve tokens.
   Reports to Telegram if rate-limited.
 - **Docker isolation.** Staging apps run in containers with limited host access.
-- **Heartbeat is minimal.** ~530 lines, no LLM, negligible attack surface.
+- **Heartbeat is minimal.** ~600 lines, no LLM, negligible attack surface.
   Monitor alert conditions use AST-validated safe evaluation — no raw `eval()`.
 - **Pause capability.** `/pause` stops all automation immediately.
 - **Alert cooldown.** Monitor alerts are deduplicated with configurable cooldown
@@ -758,7 +758,7 @@ genesis-factory/
 │       └── post-tool-use.yaml         # Auto-fix for pytest/Playwright failures
 │
 ├── heartbeat/
-│   ├── factory_heartbeat.py           # Main daemon (~530 lines, zero LLM)
+│   ├── factory_heartbeat.py           # Main daemon (~600 lines, zero LLM)
 │   ├── config.example.yaml            # Template configuration
 │   ├── requirements.txt               # schedule, requests, pyyaml
 │   ├── test_heartbeat.py              # Unit tests (safe_eval, cooldown, pause)
@@ -880,7 +880,7 @@ Telegram: ───── always listening ─────
 | Visual Verification | Computer Use | Desktop interaction, visual checks |
 | Safe Autonomy | Auto Mode | AI-judged permission decisions |
 | Cloud Backup | Scheduled Tasks | Critical crons when machine offline |
-| Orchestration | Python heartbeat (~530 lines) | Clock + sensors + watchdog |
+| Orchestration | Python heartbeat (~600 lines) | Clock + sensors + watchdog |
 | Infrastructure | Docker (PostgreSQL, staging apps) | Database and service isolation |
 | Version Control | Git + GitHub | Repos, PRs, CI/CD, auto-merge |
 | CI/CD | GitHub Actions | Build, test, deploy pipelines |

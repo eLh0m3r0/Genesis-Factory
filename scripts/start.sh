@@ -14,8 +14,8 @@ fi
 # Start Docker services
 echo "  Starting Docker services..."
 cd "$FACTORY_DIR/docker"
-docker compose up -d
-sleep 3
+docker compose up -d --wait 2>/dev/null || docker compose up -d
+sleep 2
 
 # Create tmux session
 if tmux has-session -t factory 2>/dev/null; then
