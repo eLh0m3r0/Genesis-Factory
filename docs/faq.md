@@ -6,7 +6,7 @@
 
 **Will it break production?** Every change passes CI + UAT + security review.
 
-**Session crash?** Heartbeat watchdog restarts within 2 minutes.
+**Session crash?** Heartbeat watchdog restarts within 3 minutes.
 
 **Rate limits?** Uses Sonnet for subagents. Reports if limited.
 

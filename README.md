@@ -66,7 +66,7 @@ your first project. Takes about 15 minutes.
 | Command | What happens |
 |---------|-------------|
 | `/setup` | Guided first-time onboarding (15 min) |
-| `/new <name>` | Create a new project from template |
+| `/new-project <name>` | Create a new project from template |
 | `/discover` | Research competitors, generate new stories |
 | `/build [STORY-ID]` | Implement a story (or auto-pick top priority) |
 | `/nightly` | Full development cycle (auto-triggered at 22:00) |
@@ -109,8 +109,9 @@ All intelligence lives in Claude Code — the heartbeat just provides triggers.
 | Time | What | Your involvement |
 |------|------|-----------------|
 | 02:00 Sun | Discovery: competitor research, new stories | None |
-| 22:00 Mon-Fri | Nightly: implement top story, test, merge, deploy | None |
 | 07:00 Daily | Morning brief sent to Telegram | Read on phone (2 min) |
+| 10:00 Sun | Retrospective: analyze cycles, update learnings | None |
+| 22:00 Mon-Fri | Nightly: implement top story, test, merge, deploy | None |
 | 23:00 Fri | Self-improvement: factory upgrades itself | None |
 | Anytime | Market alerts, deploy notifications | Glance at Telegram |
 
