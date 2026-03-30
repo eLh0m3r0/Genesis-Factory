@@ -191,6 +191,52 @@ The system works. These improvements take it from "works" to "polished product."
 - **Why**: Changing schedule or monitors requires manual heartbeat restart
 - **Effort**: M
 
+### 4.9 Natural Language Direction — "Operator Intent Engine"
+- **What**: Operator gives direction via Telegram in natural language. Claude intelligently
+  determines scope (one project vs all), edits the right files, confirms what it did.
+- **Why**: Currently ALL direction changes require manual file editing on the MacBook.
+  Operator must know which file to edit, what format to use, and log into the machine.
+  This is the single biggest UX gap — the phone is the control plane but it can't
+  actually control direction.
+- **How it works**:
+  1. Operator writes anything in Telegram (not a slash command)
+  2. Claude classifies the intent:
+     - **Add story**: "Přidej story: export do PDF" → create entry in BACKLOG.md
+     - **Change direction**: "Soustřeď se na mobilní verzi" → update VISION.md priorities
+     - **Add rule**: "Nepoužívej jQuery" → add to CLAUDE.md Critical Rules
+     - **Change priority**: "Dej czechattend na váhu 5" → update project_weight
+     - **Pause/unpause project**: "Dej side-project na pauzu" → set weight to 0 or create flag
+     - **Ask question**: "Kolik stories je ready?" → query and respond, don't modify
+  3. Claude determines **scope** by asking if ambiguous:
+     - Explicit: "V czechattend nepoužívej jQuery" → project-specific CLAUDE.md
+     - Explicit: "Nikde nepoužívej jQuery" → global .claude/CLAUDE.md
+     - Ambiguous: "Nepoužívej jQuery" → Claude asks: "Myslíš jen pro konkrétní projekt, nebo pro všechny?"
+  4. Claude makes the change and **confirms with diff**:
+     ```
+     ✅ Přidáno do czechattend/CLAUDE.md:
+       Critical Rules:
+     + 5. Never use jQuery — use vanilla JS or framework-native solutions
+
+     Platí jen pro projekt czechattend. Chceš to i pro ostatní?
+     ```
+  5. Operator can reply "ano pro všechny" → Claude propagates to global CLAUDE.md
+- **Scope intelligence rules**:
+  - Story → always project-specific (asks which project if not obvious)
+  - Technical rule → asks: project or global?
+  - Direction change → always project-specific (which project?)
+  - Priority/weight change → always project-specific
+  - "Everywhere" / "nikde" / "všude" / "v celém systému" → global
+  - Named project → that project's files
+  - If only 1 project exists → skip the question, use that project
+- **Safety**:
+  - Never auto-apply destructive changes (removing stories, lowering all weights)
+  - Always confirm before modifying VISION.md (it's the human's document)
+  - Show what changed, ask "ok?" before committing to git
+- **Implementation**: Primarily a CLAUDE.md section describing this behavior pattern,
+  plus examples. No new code needed — Claude Code already has full file access.
+  The key is teaching it the decision tree for scope and confirmation.
+- **Effort**: M (mostly prompt engineering in CLAUDE.md + examples + testing)
+
 ---
 
 ## Phase 5: Competitive Edge (Month 2-3)
@@ -308,9 +354,9 @@ Key differentiators to amplify:
 | P0 (do first) | 1.1-1.7 | Visibility — stop being blind |
 | P1 (next) | 2.1-2.8 | Quality — fewer stuck stories |
 | P2 (then) | 3.1-3.8 | Reliability — 30 days unattended |
-| P3 (comfort) | 4.1-4.8 | UX — smooth daily operation |
+| P3 (comfort) | 4.1-4.9 | UX — smooth daily operation + natural language direction |
 | P4 (edge) | 5.1-5.8 | Competition — unique features |
 | P5 (scale) | 6.1-6.5 | Architecture — long-term foundation |
 
-Total: **45 improvements** across 6 phases.
+Total: **46 improvements** across 6 phases.
 Estimated timeline: 2-3 months for P0-P3, 3-6 months for P4-P5.
