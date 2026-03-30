@@ -130,11 +130,11 @@ schedule:
 
 | Time | What | Your involvement |
 |------|------|-----------------|
-| 02:00 Sun | Discovery: competitor research, new stories | None |
-| 07:00 Daily | Morning brief sent to Telegram | Read on phone (2 min) |
-| 10:00 Sun | Retrospective: analyze cycles, update learnings | None |
+| 02:00 | Discovery: competitor research, new stories | None |
+| 07:00 | Morning brief sent to Telegram | Read on phone (2 min) |
+| 10:00 | Retrospective: analyze cycles, update learnings | None |
 | Configurable | Build cycles: implement, test, merge, deploy | None |
-| 23:00 Fri | Self-improvement: factory upgrades itself | None |
+| 23:00 | Self-improvement: platform scan, factory upgrades | None |
 | Anytime | Market alerts, deploy notifications | Glance at Telegram |
 
 ## Cost

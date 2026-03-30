@@ -23,9 +23,9 @@ schedule:
   build_mode: "single"
 
   morning_brief: "07:00"   # Daily: status report sent to Telegram
-  discovery: "02:00"       # Sundays only: competitor research, new stories
-  self_improvement: "23:00" # Fridays only: factory improves itself
-  retro: "10:00"           # Sundays only: weekly retrospective
+  discovery: "02:00"       # Daily: competitor research, new stories
+  self_improvement: "23:00" # Daily: platform scan + factory upgrades
+  retro: "10:00"           # Daily: analyze yesterday's cycles, update learnings
 
 # How often to check project monitors (seconds)
 monitor_interval_seconds: 300

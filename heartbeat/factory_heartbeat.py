@@ -272,30 +272,24 @@ def trigger_morning_brief():
 
 
 def trigger_discovery():
-    """02:00 Sunday: trigger weekly discovery."""
-    if datetime.now().weekday() != 6:
-        return
+    """02:00 daily: trigger discovery cycle."""
     ping_claude(
-        "🔍 Weekly discovery time. Run /discover all to research competitors "
+        "🔍 Discovery time. Run /discover all to research competitors "
         "and generate new stories for all projects."
     )
 
 
 def trigger_self_improvement():
-    """23:00 Friday: trigger factory self-improvement."""
-    if datetime.now().weekday() != 4:
-        return
+    """23:00 daily: trigger factory self-improvement."""
     ping_claude(
         "🔧 Self-improvement time. Run /upgrade to work on factory improvements."
     )
 
 
 def trigger_retro():
-    """Sunday 10:00: weekly retrospective."""
-    if datetime.now().weekday() != 6:
-        return
+    """10:00 daily: retrospective."""
     ping_claude(
-        "📝 Weekly retrospective time. Run /retro to analyze this week's cycles "
+        "📝 Retrospective time. Run /retro to analyze recent cycles "
         "and update learnings."
     )
 
