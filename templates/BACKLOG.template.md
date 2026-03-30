@@ -14,6 +14,8 @@
   - User can do X and sees Y
   - Error message shown when Z
   - Page loads in under 2 seconds
+- **blocked_by**: (story IDs that must be done first, or empty)
+- **unblocks**: (story IDs that depend on this one, or empty)
 - **design_notes**: (filled by architect agent)
 - **pr**: (filled after PR created)
 - **learnings**: (filled after completion)

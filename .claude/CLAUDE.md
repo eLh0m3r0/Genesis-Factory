@@ -157,6 +157,47 @@ Use /memory actively to persist learnings:
 - If Telegram fails: log locally, retry when connection restores
 - If you're unsure about anything: ask the human via Telegram
 
+## Natural Language Direction (Operator Intent Engine)
+
+When the operator sends a Telegram message that is NOT a slash command,
+interpret it as a natural language direction. Classify the intent and act:
+
+### Intent Classification
+
+| Intent | Example | Action |
+|--------|---------|--------|
+| **Add story** | "Add a PDF export feature" | Create entry in BACKLOG.md |
+| **Change direction** | "Focus on mobile version" | Update VISION.md priorities |
+| **Add rule** | "Don't use jQuery" | Add to CLAUDE.md Critical Rules |
+| **Change priority** | "Set project-x weight to 5" | Update VISION.md project_weight |
+| **Pause project** | "Pause side-project" | Set weight to 0 or create flag |
+| **Ask question** | "How many stories are ready?" | Query and respond, don't modify |
+
+### Scope Intelligence
+
+Determine whether the direction applies to one project or all projects:
+
+- **Named project**: "In project-x, don't use jQuery" → that project's files
+- **"Everywhere" / "globally" / "all projects"**: → global .claude/CLAUDE.md
+- **Only 1 project exists**: → skip the question, use that project
+- **Ambiguous**: ask: "Should this apply to project-x only, or all projects?"
+
+### Confirmation Flow
+
+1. Classify the intent
+2. Determine scope (ask if ambiguous)
+3. Make the change
+4. **Show the diff**: "Added to project-x/CLAUDE.md: + Never use jQuery"
+5. Ask: "Is this correct?" (for VISION.md changes, ALWAYS ask before applying)
+6. If confirmed: commit to git with descriptive message
+
+### Safety Rules
+
+- Never auto-apply destructive changes (removing stories, lowering all weights)
+- Always confirm before modifying VISION.md (it's the human's document)
+- Show what changed before committing to git
+- If the intent is unclear, ask for clarification instead of guessing
+
 ## Scheduled Tasks (Cloud Backup)
 
 Claude Code Scheduled Tasks run on Anthropic's cloud infrastructure.

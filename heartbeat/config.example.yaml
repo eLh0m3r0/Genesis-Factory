@@ -26,8 +26,16 @@ projects_dir: "~/projects"
 # Alert cooldown (seconds) — suppress repeated alerts for same monitor
 alert_cooldown_seconds: 900  # 15 minutes
 
-# Disk space warning threshold (GB free)
+# Disk space thresholds (GB free) — progressive alerts:
+#   warning: below disk_warning_gb (default 10 GB)
+#   alert:   below 5 GB
+#   critical: below 2 GB (triggers automatic log cleanup)
 disk_warning_gb: 10
 
 # System health check interval (seconds)
 health_check_interval_seconds: 3600
+
+# Optional: environment variables that monitors depend on.
+# Heartbeat warns at startup if any are missing (does not crash).
+required_env_vars: []
+# Example: ["GITHUB_TOKEN", "BINANCE_API_KEY"]

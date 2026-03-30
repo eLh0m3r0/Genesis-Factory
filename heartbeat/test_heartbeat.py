@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Tests for Genesis Factory Heartbeat."""
 
+import json
 import os
+import signal
+import tempfile
 import pytest
 from datetime import datetime, timedelta
+from unittest.mock import patch, MagicMock
 
 
 class TestSafeEval:
@@ -134,6 +138,18 @@ class TestSafeEval:
         with pytest.raises(ValueError, match="not allowed"):
             safe_eval("getattr('', 'join')")
 
+    def test_timeout_sets_alarm(self):
+        """safe_eval should set and clear SIGALRM for timeout protection."""
+        from factory_heartbeat import safe_eval
+        with patch("factory_heartbeat.signal.alarm") as mock_alarm:
+            with patch("factory_heartbeat.signal.signal") as mock_signal:
+                mock_signal.return_value = signal.SIG_DFL
+                safe_eval("1 + 1")
+                # alarm(1) sets the timeout, alarm(0) cancels it
+                assert mock_alarm.call_count == 2
+                mock_alarm.assert_any_call(1)
+                mock_alarm.assert_any_call(0)
+
 
 class TestAlertCooldown:
     """Test alert deduplication logic."""
@@ -196,6 +212,334 @@ class TestAlertCooldown:
         from factory_heartbeat import _record_recovery, _service_down
         _service_down.clear()
         assert _record_recovery("test:never_down") is False
+
+
+class TestAlertStatePersistence:
+    """Test alert state save/load to JSON file."""
+
+    def test_save_and_load_roundtrip(self, tmp_path):
+        import factory_heartbeat
+        original_file = factory_heartbeat.ALERT_STATE_FILE
+        test_file = str(tmp_path / "test_alert_state.json")
+        factory_heartbeat.ALERT_STATE_FILE = test_file
+        try:
+            factory_heartbeat._alert_state.clear()
+            factory_heartbeat._service_down.clear()
+
+            # Record some alerts
+            factory_heartbeat._alert_state["mon:a"] = datetime(2026, 3, 30, 10, 0, 0)
+            factory_heartbeat._alert_state["mon:b"] = datetime(2026, 3, 30, 11, 0, 0)
+            factory_heartbeat._service_down.add("mon:a")
+            factory_heartbeat._save_alert_state()
+
+            # Clear in-memory state
+            factory_heartbeat._alert_state.clear()
+            factory_heartbeat._service_down.clear()
+
+            # Load from file
+            factory_heartbeat._load_alert_state()
+
+            assert len(factory_heartbeat._alert_state) == 2
+            assert "mon:a" in factory_heartbeat._alert_state
+            assert "mon:b" in factory_heartbeat._alert_state
+            assert factory_heartbeat._alert_state["mon:a"] == datetime(2026, 3, 30, 10, 0, 0)
+            assert "mon:a" in factory_heartbeat._service_down
+        finally:
+            factory_heartbeat.ALERT_STATE_FILE = original_file
+
+    def test_load_missing_file(self, tmp_path):
+        import factory_heartbeat
+        original_file = factory_heartbeat.ALERT_STATE_FILE
+        factory_heartbeat.ALERT_STATE_FILE = str(tmp_path / "nonexistent.json")
+        try:
+            factory_heartbeat._alert_state.clear()
+            factory_heartbeat._service_down.clear()
+            factory_heartbeat._load_alert_state()
+            # Should not crash, state should remain empty
+            assert len(factory_heartbeat._alert_state) == 0
+            assert len(factory_heartbeat._service_down) == 0
+        finally:
+            factory_heartbeat.ALERT_STATE_FILE = original_file
+
+    def test_load_corrupt_json(self, tmp_path):
+        import factory_heartbeat
+        original_file = factory_heartbeat.ALERT_STATE_FILE
+        test_file = tmp_path / "corrupt.json"
+        test_file.write_text("{invalid json")
+        factory_heartbeat.ALERT_STATE_FILE = str(test_file)
+        try:
+            factory_heartbeat._alert_state["old"] = datetime.now()
+            factory_heartbeat._load_alert_state()
+            # Should start fresh on corrupt file
+            assert len(factory_heartbeat._alert_state) == 0
+            assert len(factory_heartbeat._service_down) == 0
+        finally:
+            factory_heartbeat.ALERT_STATE_FILE = original_file
+
+    def test_record_alert_saves_state(self, tmp_path):
+        import factory_heartbeat
+        original_file = factory_heartbeat.ALERT_STATE_FILE
+        test_file = str(tmp_path / "auto_save.json")
+        factory_heartbeat.ALERT_STATE_FILE = test_file
+        try:
+            factory_heartbeat._alert_state.clear()
+            factory_heartbeat._service_down.clear()
+            factory_heartbeat._record_alert("test:auto")
+            # File should exist after record_alert
+            assert os.path.exists(test_file)
+            with open(test_file) as f:
+                data = json.load(f)
+            assert "test:auto" in data["alert_state"]
+            assert "test:auto" in data["service_down"]
+        finally:
+            factory_heartbeat.ALERT_STATE_FILE = original_file
+
+    def test_record_recovery_saves_state(self, tmp_path):
+        import factory_heartbeat
+        original_file = factory_heartbeat.ALERT_STATE_FILE
+        test_file = str(tmp_path / "recovery_save.json")
+        factory_heartbeat.ALERT_STATE_FILE = test_file
+        try:
+            factory_heartbeat._alert_state.clear()
+            factory_heartbeat._service_down.clear()
+            factory_heartbeat._record_alert("test:rec")
+            factory_heartbeat._record_recovery("test:rec")
+            with open(test_file) as f:
+                data = json.load(f)
+            assert "test:rec" not in data["alert_state"]
+            assert "test:rec" not in data["service_down"]
+        finally:
+            factory_heartbeat.ALERT_STATE_FILE = original_file
+
+
+class TestTelegramRetry:
+    """Test Telegram send with retry and backoff."""
+
+    @patch("factory_heartbeat.requests.post")
+    def test_success_returns_true(self, mock_post):
+        from factory_heartbeat import send_telegram
+        mock_post.return_value = MagicMock(ok=True)
+        assert send_telegram("test") is True
+        assert mock_post.call_count == 1
+
+    @patch("factory_heartbeat.time.sleep")
+    @patch("factory_heartbeat.requests.post")
+    def test_retries_on_server_error(self, mock_post, mock_sleep):
+        from factory_heartbeat import send_telegram
+        mock_post.return_value = MagicMock(ok=False, status_code=500)
+        assert send_telegram("test") is False
+        assert mock_post.call_count == 3
+        # Backoff: 1s after first fail, 2s after second
+        assert mock_sleep.call_count == 2
+
+    @patch("factory_heartbeat.requests.post")
+    def test_no_retry_on_client_error(self, mock_post):
+        from factory_heartbeat import send_telegram
+        mock_post.return_value = MagicMock(ok=False, status_code=400, text="Bad Request")
+        assert send_telegram("test") is False
+        assert mock_post.call_count == 1  # No retry
+
+    @patch("factory_heartbeat.time.sleep")
+    @patch("factory_heartbeat.requests.post")
+    def test_retries_on_exception(self, mock_post, mock_sleep):
+        from factory_heartbeat import send_telegram
+        mock_post.side_effect = ConnectionError("network down")
+        assert send_telegram("test") is False
+        assert mock_post.call_count == 3
+
+    @patch("factory_heartbeat.time.sleep")
+    @patch("factory_heartbeat.requests.post")
+    def test_succeeds_on_second_attempt(self, mock_post, mock_sleep):
+        from factory_heartbeat import send_telegram
+        mock_post.side_effect = [
+            ConnectionError("network down"),
+            MagicMock(ok=True),
+        ]
+        assert send_telegram("test") is True
+        assert mock_post.call_count == 2
+
+
+class TestDiskSpaceProgressiveAlerts:
+    """Test progressive disk space alert tiers."""
+
+    @patch("factory_heartbeat.send_telegram")
+    @patch("factory_heartbeat.shutil.disk_usage")
+    def test_critical_under_2gb(self, mock_usage, mock_tg):
+        import factory_heartbeat
+        factory_heartbeat._alert_state.clear()
+        factory_heartbeat._service_down.clear()
+        # 1 GB free of 500 GB
+        mock_usage.return_value = MagicMock(
+            free=1 * 1024**3, total=500 * 1024**3
+        )
+        factory_heartbeat.check_system_health()
+        mock_tg.assert_called_once()
+        msg = mock_tg.call_args[0][0]
+        assert "nearly full" in msg.lower() or "🔴🔴" in msg
+
+    @patch("factory_heartbeat.send_telegram")
+    @patch("factory_heartbeat.shutil.disk_usage")
+    def test_alert_under_5gb(self, mock_usage, mock_tg):
+        import factory_heartbeat
+        factory_heartbeat._alert_state.clear()
+        factory_heartbeat._service_down.clear()
+        # 3 GB free
+        mock_usage.return_value = MagicMock(
+            free=3 * 1024**3, total=500 * 1024**3
+        )
+        factory_heartbeat.check_system_health()
+        mock_tg.assert_called_once()
+        msg = mock_tg.call_args[0][0]
+        assert "critical" in msg.lower() or "🔴" in msg
+
+    @patch("factory_heartbeat.send_telegram")
+    @patch("factory_heartbeat.shutil.disk_usage")
+    def test_warning_under_threshold(self, mock_usage, mock_tg):
+        import factory_heartbeat
+        factory_heartbeat._alert_state.clear()
+        factory_heartbeat._service_down.clear()
+        # 7 GB free (under 10 GB default threshold)
+        mock_usage.return_value = MagicMock(
+            free=7 * 1024**3, total=500 * 1024**3
+        )
+        factory_heartbeat.check_system_health()
+        mock_tg.assert_called_once()
+        msg = mock_tg.call_args[0][0]
+        assert "low disk" in msg.lower() or "⚠️" in msg
+
+    @patch("factory_heartbeat.send_telegram")
+    @patch("factory_heartbeat.shutil.disk_usage")
+    def test_no_alert_above_threshold(self, mock_usage, mock_tg):
+        import factory_heartbeat
+        factory_heartbeat._alert_state.clear()
+        factory_heartbeat._service_down.clear()
+        # 50 GB free — no alert
+        mock_usage.return_value = MagicMock(
+            free=50 * 1024**3, total=500 * 1024**3
+        )
+        factory_heartbeat.check_system_health()
+        mock_tg.assert_not_called()
+
+    @patch("factory_heartbeat.send_telegram")
+    @patch("factory_heartbeat.shutil.disk_usage")
+    def test_recovery_notification(self, mock_usage, mock_tg):
+        import factory_heartbeat
+        factory_heartbeat._alert_state.clear()
+        factory_heartbeat._service_down.clear()
+        # Simulate prior warning state
+        factory_heartbeat._service_down.add("system:disk:warning")
+        # Now disk is fine
+        mock_usage.return_value = MagicMock(
+            free=50 * 1024**3, total=500 * 1024**3
+        )
+        factory_heartbeat.check_system_health()
+        mock_tg.assert_called_once()
+        msg = mock_tg.call_args[0][0]
+        assert "recovered" in msg.lower() or "✅" in msg
+
+
+class TestMonitorConfigCaching:
+    """Test that monitor config is cached on parse error."""
+
+    def test_cache_populated_on_success(self, tmp_path):
+        import factory_heartbeat
+        # Create a project with valid config
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        config_file = project_dir / "heartbeat_config.yaml"
+        config_file.write_text("monitors: [{name: test, type: url_health, url: 'http://example.com'}]")
+
+        original = factory_heartbeat.PROJECTS_DIR
+        factory_heartbeat.PROJECTS_DIR = str(tmp_path)
+        factory_heartbeat._monitor_config_cache.clear()
+        try:
+            with patch("factory_heartbeat.run_single_monitor"):
+                factory_heartbeat.run_monitors()
+            assert "test_project" in factory_heartbeat._monitor_config_cache
+        finally:
+            factory_heartbeat.PROJECTS_DIR = original
+
+    def test_uses_cache_on_parse_error(self, tmp_path):
+        import factory_heartbeat
+        project_dir = tmp_path / "cached_project"
+        project_dir.mkdir()
+        config_file = project_dir / "heartbeat_config.yaml"
+
+        # First: write valid config so it gets cached
+        config_file.write_text("monitors: [{name: cached, type: url_health, url: 'http://example.com'}]")
+        original = factory_heartbeat.PROJECTS_DIR
+        factory_heartbeat.PROJECTS_DIR = str(tmp_path)
+        factory_heartbeat._monitor_config_cache.clear()
+        factory_heartbeat._alert_state.clear()
+        factory_heartbeat._service_down.clear()
+        try:
+            with patch("factory_heartbeat.run_single_monitor") as mock_run:
+                factory_heartbeat.run_monitors()
+                assert mock_run.call_count == 1
+
+            # Now corrupt the config
+            config_file.write_text("{invalid: yaml: [}")
+
+            with patch("factory_heartbeat.run_single_monitor") as mock_run:
+                with patch("factory_heartbeat.send_telegram"):
+                    factory_heartbeat.run_monitors()
+                # Should still run monitors from cached config
+                assert mock_run.call_count == 1
+        finally:
+            factory_heartbeat.PROJECTS_DIR = original
+
+
+class TestWatchdogBackoff:
+    """Test exponential backoff between watchdog restarts."""
+
+    def test_backoff_delays_defined(self):
+        from factory_heartbeat import _WATCHDOG_BACKOFF
+        assert len(_WATCHDOG_BACKOFF) == 5
+        # Delays should be increasing
+        for i in range(1, len(_WATCHDOG_BACKOFF)):
+            assert _WATCHDOG_BACKOFF[i] > _WATCHDOG_BACKOFF[i - 1]
+
+    def test_backoff_blocks_immediate_restart(self):
+        import factory_heartbeat
+        factory_heartbeat._watchdog_restarts.clear()
+        factory_heartbeat._watchdog_failures = 3
+        # Simulate a restart that just happened
+        factory_heartbeat._watchdog_restarts.append(datetime.now())
+
+        with patch("factory_heartbeat.subprocess.run"):
+            with patch("factory_heartbeat.send_telegram"):
+                factory_heartbeat._restart_claude_code(session_exists=True)
+        # Backoff should have blocked the restart (failures reset to 0)
+        assert factory_heartbeat._watchdog_failures == 0
+        # Only 1 restart in the list (the simulated one, no new one added)
+        assert len(factory_heartbeat._watchdog_restarts) == 1
+        factory_heartbeat._watchdog_restarts.clear()
+
+
+class TestWatchdogRestartNotification:
+    """Test that restart notifications include uptime."""
+
+    @patch("factory_heartbeat.time.sleep")
+    @patch("factory_heartbeat.subprocess.run")
+    @patch("factory_heartbeat.send_telegram")
+    def test_restart_message_includes_uptime(self, mock_tg, mock_run, mock_sleep):
+        import factory_heartbeat
+        factory_heartbeat._watchdog_restarts.clear()
+        factory_heartbeat._watchdog_failures = 3
+
+        # Simulate tmux commands succeeding
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout="0: claude* (1 panes)"
+        )
+
+        factory_heartbeat._restart_claude_code(session_exists=True)
+
+        # Check the Telegram message contains uptime info
+        assert mock_tg.called
+        msg = mock_tg.call_args[0][0]
+        assert "uptime was" in msg
+        assert "consecutive failures" in msg
+        factory_heartbeat._watchdog_restarts.clear()
 
 
 class TestPauseFlag:
@@ -277,6 +621,16 @@ class TestConstants:
         assert HTTP_TIMEOUT_POLL == 15
         assert HTTP_TIMEOUT_HEALTH == 10
 
+    def test_new_constants_exist(self):
+        from factory_heartbeat import (
+            ALERT_STATE_FILE,
+            _WATCHDOG_BACKOFF,
+            _start_time,
+        )
+        assert ALERT_STATE_FILE.endswith("alert_state.json")
+        assert len(_WATCHDOG_BACKOFF) == 5
+        assert isinstance(_start_time, datetime)
+
 
 class TestLogSanitization:
     """Test sensitive data is stripped from log output."""
@@ -313,6 +667,118 @@ class TestGracefulShutdown:
     def test_shutdown_flag_exists(self):
         from factory_heartbeat import _shutdown
         assert _shutdown is False
+
+
+class TestConfigReload:
+    """Test SIGHUP config reload mechanism."""
+
+    def test_reload_flag_exists(self):
+        from factory_heartbeat import _reload_requested
+        assert _reload_requested is False
+
+    def test_sighup_handler_sets_flag(self):
+        import factory_heartbeat
+        original = factory_heartbeat._reload_requested
+        try:
+            factory_heartbeat._reload_requested = False
+            factory_heartbeat.handle_sighup(signal.SIGHUP, None)
+            assert factory_heartbeat._reload_requested is True
+        finally:
+            factory_heartbeat._reload_requested = original
+
+    @patch("factory_heartbeat.send_telegram")
+    def test_do_config_reload_updates_globals(self, mock_tg):
+        import factory_heartbeat
+        original_cooldown = factory_heartbeat.ALERT_COOLDOWN
+        original_disk = factory_heartbeat.DISK_WARNING_GB
+
+        # Write a new config with different values
+        fd, path = tempfile.mkstemp(suffix=".yaml")
+        try:
+            with os.fdopen(fd, "w") as f:
+                f.write(
+                    'telegram:\n'
+                    '  bot_token: "123456789:ABCdefGHIjklMNO_test"\n'
+                    '  chat_id: "123456789"\n'
+                    'projects_dir: "/tmp/genesis_test_projects"\n'
+                    'alert_cooldown_seconds: 120\n'
+                    'disk_warning_gb: 20\n'
+                )
+            original_config_path = factory_heartbeat.CONFIG_PATH
+            factory_heartbeat.CONFIG_PATH = path
+            factory_heartbeat._do_config_reload()
+            assert factory_heartbeat.ALERT_COOLDOWN == 120
+            assert factory_heartbeat.DISK_WARNING_GB == 20
+        finally:
+            factory_heartbeat.CONFIG_PATH = original_config_path
+            factory_heartbeat.ALERT_COOLDOWN = original_cooldown
+            factory_heartbeat.DISK_WARNING_GB = original_disk
+            # Re-register schedule with original config
+            import schedule
+            schedule.clear()
+            factory_heartbeat.config = factory_heartbeat.load_config()
+            factory_heartbeat._register_schedule()
+            os.unlink(path)
+
+
+class TestRequiredEnvVars:
+    """Test required environment variable validation."""
+
+    def test_missing_vars_detected(self):
+        import factory_heartbeat
+        original_config = factory_heartbeat.config
+        factory_heartbeat.config = {
+            **original_config,
+            "required_env_vars": ["NONEXISTENT_VAR_12345"],
+        }
+        try:
+            # main() checks env vars — we just test the logic directly
+            required = factory_heartbeat.config.get("required_env_vars", [])
+            missing = [v for v in required if not os.environ.get(v)]
+            assert "NONEXISTENT_VAR_12345" in missing
+        finally:
+            factory_heartbeat.config = original_config
+
+    def test_present_vars_not_flagged(self):
+        # PATH is always set on macOS/Linux
+        import factory_heartbeat
+        required = ["PATH"]
+        missing = [v for v in required if not os.environ.get(v)]
+        assert len(missing) == 0
+
+
+class TestScheduleRegistration:
+    """Test schedule registration function."""
+
+    def test_register_schedule_creates_jobs(self):
+        import factory_heartbeat
+        import schedule
+        schedule.clear()
+        factory_heartbeat._register_schedule()
+        # Should have: 5 daily + monitors + health + watchdog = 8 jobs
+        assert len(schedule.get_jobs()) == 8
+
+
+class TestLogCleanup:
+    """Test old log file cleanup."""
+
+    def test_cleanup_removes_old_logs(self, tmp_path):
+        import factory_heartbeat
+        original_log = factory_heartbeat.LOG_FILE
+        factory_heartbeat.LOG_FILE = str(tmp_path / "heartbeat.log")
+        try:
+            # Create rotated log files
+            for suffix in (".1", ".2", ".3"):
+                path = factory_heartbeat.LOG_FILE + suffix
+                with open(path, "w") as f:
+                    f.write("old log data\n")
+
+            factory_heartbeat._cleanup_old_logs()
+
+            for suffix in (".1", ".2", ".3"):
+                assert not os.path.exists(factory_heartbeat.LOG_FILE + suffix)
+        finally:
+            factory_heartbeat.LOG_FILE = original_log
 
 
 class TestASTValidation:

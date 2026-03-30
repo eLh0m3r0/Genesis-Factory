@@ -13,8 +13,9 @@ Show the top-priority stories across all managed projects.
 3. Read each project's VISION.md for `project_weight` (default 1).
 4. Score each story: `priority * project_weight / effort_multiplier`
    - Effort multiplier: S=1, M=2, L=4, XL=8
-5. Sort by score (highest first).
-6. Display top 10 stories.
+5. Check `blocked_by` field — mark blocked stories with 🔒.
+6. Sort by score (highest first), blocked stories at the bottom.
+7. Display top 10 stories.
 
 ## Output Format
 

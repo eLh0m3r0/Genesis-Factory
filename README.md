@@ -1,6 +1,6 @@
 # 🏭 Genesis Factory
 
-**Your autonomous IT team, running on a MacBook.**
+**Your autonomous IT team, running 24/7 on your hardware.**
 
 Genesis Factory is a complete autonomous software development system. It discovers
 what to build, designs solutions, writes code, tests in real browsers, reviews for
@@ -42,7 +42,7 @@ your first project. Takes about 15 minutes.
 
 | What | Why |
 |------|-----|
-| MacBook with 16GB+ RAM (Apple Silicon) | Dedicated factory machine, runs 24/7 lid-closed |
+| Mac, Linux machine, or VPS (16GB+ RAM) | Dedicated factory machine, runs 24/7 |
 | Claude Code Max subscription ($100/month) | Opus 4.6 for coding, Agent Teams, Channels, Auto Mode |
 | GitHub account | Repos, CI/CD, auto-merge |
 | Telegram account | Your control plane — command the factory from your phone |
@@ -82,7 +82,7 @@ your first project. Takes about 15 minutes.
 ## Architecture
 
 ```
-MacBook Air M1 (lid closed, 24/7)
+Dedicated machine (Mac / Linux / VPS, 24/7)
 │
 ├── tmux "factory"
 │   ├── Claude Code + Channels (Telegram)     ← the brain
@@ -98,7 +98,7 @@ MacBook Air M1 (lid closed, 24/7)
 └── Telegram               ← your phone = remote control
 ```
 
-The **heartbeat** is a lightweight Python daemon (~660 lines, zero LLM calls).
+The **heartbeat** is a lightweight Python daemon (~840 lines, zero LLM calls).
 It's a clock that tells Claude "it's 22:00, time to code" and sensors
 that watch markets/APIs and alert Claude when something needs attention.
 
@@ -113,7 +113,7 @@ All intelligence lives in Claude Code — the heartbeat just provides triggers.
 | **Auto Mode** | Safety classifier approves safe actions, blocks risky ones |
 | **Effort levels** | `/effort medium` for routine, `/effort high` for complex tasks |
 | **`/loop`** | Recurring in-session checks (e.g., `/loop 5m check deploy`) |
-| **Scheduled Tasks** | Cloud-based backup crons when MacBook is offline |
+| **Scheduled Tasks** | Cloud-based backup crons when machine is offline |
 | **Computer Use** | Visual verification of deployed web apps |
 | **Playwright MCP** | Structured browser testing with screenshots |
 
@@ -136,7 +136,7 @@ All intelligence lives in Claude Code — the heartbeat just provides triggers.
 | GitHub | Free |
 | Telegram | Free |
 | Docker | Free |
-| Electricity (MacBook ~15W) | ~$3 |
+| Electricity (~15W) | ~$3 |
 | **Total** | **~$103** |
 
 ## FAQ

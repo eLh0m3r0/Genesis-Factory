@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Project Monitor Configuration",
+  "description": "Schema for per-project heartbeat_config.yaml",
+  "type": "object",
+  "properties": {
+    "monitors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "type"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Human-readable monitor name"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["http_poll", "url_health"],
+            "description": "Monitor type"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL to monitor (required for http_poll and url_health)"
+          },
+          "method": {
+            "type": "string",
+            "enum": ["GET", "POST"],
+            "default": "GET"
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          },
+          "body": {
+            "type": "string",
+            "description": "Request body (supports ${ENV_VAR} substitution)"
+          },
+          "alert_condition": {
+            "type": "string",
+            "description": "Python expression evaluated against response (safe_eval)"
+          },
+          "alert_message": {
+            "type": "string",
+            "description": "Message template ({details} is replaced with response data)"
+          }
+        },
+        "if": {
+          "properties": { "type": { "enum": ["http_poll", "url_health"] } }
+        },
+        "then": {
+          "required": ["url"]
+        }
+      }
+    }
+  }
+}

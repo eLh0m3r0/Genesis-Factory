@@ -1,0 +1,9 @@
+# Runtime state (persisted between restarts, not committed)
+alert_state.json
+
+# Logs
+heartbeat.log
+heartbeat.log.*
+
+# Config with real secrets
+config.yaml

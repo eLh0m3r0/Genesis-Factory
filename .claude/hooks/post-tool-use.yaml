@@ -17,3 +17,47 @@
         2. Find the correct selector (prefer role/label over CSS)
         3. Check the project's AGENTS.md for known-good selectors
         4. Update AGENTS.md with the new selector if you find a better one
+- matcher: "Bash(git push*)"
+  hooks:
+    - type: prompt
+      prompt: |
+        If git push failed:
+        - "rejected" or "non-fast-forward": run `git pull --rebase origin main` then retry
+        - "permission denied": check GitHub token with `gh auth status`
+        - "remote not found": check remote with `git remote -v`
+        Do NOT force push unless explicitly asked by the operator.
+- matcher: "Bash(npm install*)"
+  hooks:
+    - type: prompt
+      prompt: |
+        If npm install failed:
+        - "ENOSPC": disk is full — check with `df -h /`
+        - "EACCES": permissions issue — don't use sudo, fix ownership
+        - "ERESOLVE": dependency conflict — try `npm install --legacy-peer-deps`
+        - Network error: check internet, retry once
+- matcher: "Bash(pip install*)"
+  hooks:
+    - type: prompt
+      prompt: |
+        If pip install failed:
+        - "No matching distribution": check Python version compatibility
+        - "Permission denied": use `pip3 install --user` or a virtualenv
+        - Network error: check internet, retry once
+- matcher: "Bash(docker*)"
+  hooks:
+    - type: prompt
+      prompt: |
+        If docker command failed:
+        - "Cannot connect to Docker daemon": Docker Desktop is not running
+        - "port is already allocated": another service uses that port, find it with `lsof -i :{port}`
+        - "no space left on device": run `docker system prune` to free space
+        - "image not found": run `docker compose pull` first
+- matcher: "Bash(gh *)"
+  hooks:
+    - type: prompt
+      prompt: |
+        If GitHub CLI failed:
+        - "API rate limit exceeded": wait and retry (check X-RateLimit-Reset)
+        - "authentication required": run `gh auth status` to check token
+        - "Not Found": verify repo name and permissions
+        - "HTTP 422": usually a validation error — read the error message carefully

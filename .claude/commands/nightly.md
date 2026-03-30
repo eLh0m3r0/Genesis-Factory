@@ -18,7 +18,8 @@ This is the main autonomous cycle, typically triggered by the heartbeat at 22:00
 
 3. Pick what to build:
    - Scan ~/projects/*/BACKLOG.md for "ready" stories
-   - If stories available: run /build on the top one
+   - Skip stories with `blocked_by` fields where the blocking story is not "done"
+   - If stories available: run /build on the top unblocked one
    - If NO stories available: run /discover for least-researched project
    - If everything is caught up: run /upgrade (self-improvement)
 

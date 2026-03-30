@@ -13,14 +13,32 @@ Create a new project in ~/projects/ using the factory templates.
 2. Create directory: `mkdir -p ~/projects/{name}`
 3. Copy template files:
    - templates/VISION.template.md → VISION.md
-   - templates/CLAUDE.template.md → CLAUDE.md  
+   - templates/CLAUDE.template.md → CLAUDE.md
    - templates/BACKLOG.template.md → BACKLOG.md
    - Create empty RESEARCH.md and AGENTS.md
 4. Replace {PROJECT_NAME} placeholders in templates.
 5. Initialize git repo: `cd ~/projects/{name} && git init`
-6. Ask the user: "Tell me about this project — what is it, who is it for, what tech stack?"
-7. Fill in VISION.md based on their answer.
-8. Create CLAUDE.md with technical context based on the stack they described.
-9. Create GitHub remote: `gh repo create {name} --private --source=. --push`
-10. Create basic CI workflow: .github/workflows/ci.yml
-11. Report to Telegram: "New project '{name}' created. Run /discover to generate stories."
+6. **Interactive Q&A** — ask one at a time:
+   - "Tell me about this project — what does it do, who is it for?"
+   - "What tech stack? (e.g., Python/Flask, Node/React, etc.)"
+   - "Does it have a database? If so, what type?"
+   - "Where will it be deployed? (e.g., Vercel, Railway, VPS, Docker)"
+   - "Any specific requirements or constraints?"
+7. Fill in VISION.md based on answers (direction, priorities, constraints).
+8. Create CLAUDE.md with technical context:
+   - Stack section based on tech stack answer
+   - Architecture section with sensible defaults for the stack
+   - Critical Rules section with stack-appropriate rules
+   - Test commands section
+9. **Generate CI workflow** based on stack:
+   - Python: pytest + ruff linting
+   - Node: npm test + eslint
+   - Go: go test + go vet
+   - Other: basic build + test
+   - Save to `.github/workflows/ci.yml`
+10. **Create heartbeat_config.yaml** with sensible defaults:
+    - url_health monitor for production URL (if deployment target is known)
+    - Placeholder monitor to be configured later
+11. Create GitHub remote: `gh repo create {name} --private --source=. --push`
+12. Report to Telegram: "New project '{name}' created. Run /discover to generate stories."
+13. **Auto-run /discover** for the new project to generate initial backlog.

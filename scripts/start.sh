@@ -15,7 +15,19 @@ fi
 echo "  Starting Docker services..."
 cd "$FACTORY_DIR/docker"
 docker compose up -d --wait 2>/dev/null || docker compose up -d
-sleep 2
+
+# Wait for PostgreSQL to be ready (max 30 seconds)
+echo "  Waiting for PostgreSQL..."
+for i in $(seq 1 30); do
+    if docker compose exec -T postgres pg_isready -q 2>/dev/null; then
+        echo "  PostgreSQL ready (${i}s)"
+        break
+    fi
+    if [ "$i" -eq 30 ]; then
+        echo "  ⚠️  PostgreSQL not ready after 30s (continuing anyway)"
+    fi
+    sleep 1
+done
 
 # Create tmux session
 if tmux has-session -t factory 2>/dev/null; then

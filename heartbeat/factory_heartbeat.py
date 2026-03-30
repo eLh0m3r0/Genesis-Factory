@@ -6,7 +6,7 @@ A lightweight daemon (zero LLM calls) that provides:
 1. Clock — scheduled triggers to Claude Code via Telegram
 2. Sensors — monitors external APIs/URLs, alerts on anomalies
 3. Watchdog — restarts Claude Code if the session crashes
-4. System health — monitors disk space
+4. System health — monitors disk space (progressive tiers)
 
 Requirements: pip install schedule requests pyyaml
 """
@@ -88,6 +88,9 @@ if ":" not in TELEGRAM_TOKEN or len(TELEGRAM_TOKEN) < 20:
 ALERT_COOLDOWN = config.get("alert_cooldown_seconds", 900)  # 15 min default
 DISK_WARNING_GB = config.get("disk_warning_gb", 10)
 PAUSE_FILE = os.path.join(PROJECTS_DIR, ".factory_paused")
+ALERT_STATE_FILE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "alert_state.json"
+)
 
 # Watchdog constants
 WATCHDOG_FAILURE_THRESHOLD = 3
@@ -95,6 +98,12 @@ WATCHDOG_MAX_RESTARTS_PER_HOUR = 5
 SUBPROCESS_TIMEOUT = 5
 HTTP_TIMEOUT_POLL = 15
 HTTP_TIMEOUT_HEALTH = 10
+
+# Exponential backoff delays between watchdog restarts (seconds)
+_WATCHDOG_BACKOFF = [60, 120, 300, 600, 1800]
+
+# Track process start time for uptime reporting
+_start_time = datetime.now()
 
 
 def is_paused():
@@ -109,6 +118,7 @@ def is_paused():
 # Validates the AST to block imports, exec, dunder access, and other
 # dangerous operations while supporting comparisons, math, builtins,
 # subscript/attribute access, and comprehensions.
+# Enforces a 1-second execution timeout via SIGALRM.
 
 ALLOWED_AST_NODES = frozenset({
     ast.Expression, ast.Constant, ast.Name, ast.Load, ast.Store,
@@ -152,6 +162,11 @@ def _validate_ast(node):
         _validate_ast(child)
 
 
+def _timeout_handler(signum, frame):
+    """Signal handler for safe_eval execution timeout."""
+    raise TimeoutError("Expression evaluation timed out (1s limit)")
+
+
 def safe_eval(expr_str, variables=None):
     """
     Evaluate a Python expression safely.
@@ -159,11 +174,20 @@ def safe_eval(expr_str, variables=None):
     Allows: comparisons, math, safe builtins (float/int/abs/any/all/...),
     subscript/attribute access (no dunders), comprehensions.
     Blocks: imports, exec, eval, open, dunder access, and other unsafe ops.
+    Enforces a 1-second execution timeout via SIGALRM.
     """
     tree = ast.parse(expr_str, mode="eval")
     _validate_ast(tree.body)
     safe_globals = {"__builtins__": SAFE_BUILTINS}
-    return eval(compile(tree, "<monitor>", "eval"), safe_globals, variables or {})
+    old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+    signal.alarm(1)
+    try:
+        return eval(
+            compile(tree, "<monitor>", "eval"), safe_globals, variables or {}
+        )
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old_handler)
 
 
 # ---------------------------------------------------------------------------
@@ -171,21 +195,38 @@ def safe_eval(expr_str, variables=None):
 # ---------------------------------------------------------------------------
 
 def send_telegram(message):
-    """Send a message to the factory Telegram chat."""
-    try:
-        resp = requests.post(
-            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
-            json={
-                "chat_id": TELEGRAM_CHAT_ID,
-                "text": message,
-                "parse_mode": "Markdown",
-            },
-            timeout=10,
-        )
-        if not resp.ok:
-            log.error(f"Telegram send failed: {resp.status_code} {resp.text}")
-    except Exception as e:
-        log.error(f"Telegram send error: {e}")
+    """Send a message to the factory Telegram chat. Retries with backoff."""
+    for attempt in range(3):
+        try:
+            resp = requests.post(
+                f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+                json={
+                    "chat_id": TELEGRAM_CHAT_ID,
+                    "text": message,
+                    "parse_mode": "Markdown",
+                },
+                timeout=10,
+            )
+            if resp.ok:
+                return True
+            # Don't retry client errors (bad token, bad chat_id, etc.)
+            if 400 <= resp.status_code < 500:
+                log.error(
+                    f"Telegram send failed: {resp.status_code} {resp.text}"
+                )
+                return False
+            log.warning(
+                f"Telegram send failed (attempt {attempt + 1}/3): "
+                f"{resp.status_code}"
+            )
+        except Exception as e:
+            log.warning(
+                f"Telegram send error (attempt {attempt + 1}/3): {e}"
+            )
+        if attempt < 2:
+            time.sleep(2 ** attempt)  # 1s, 2s
+    log.error("Telegram send failed after 3 attempts.")
+    return False
 
 
 def ping_claude(message):
@@ -251,11 +292,49 @@ def trigger_retro():
 
 
 # ---------------------------------------------------------------------------
-# Alert State (cooldown to prevent alert storms)
+# Alert State (cooldown to prevent alert storms, persisted to disk)
 # ---------------------------------------------------------------------------
 
 _alert_state = {}  # monitor_key -> last alert datetime
 _service_down = set()  # monitor_keys currently in "down" state
+
+
+def _load_alert_state():
+    """Load persisted alert state from JSON file."""
+    global _alert_state, _service_down
+    if not os.path.exists(ALERT_STATE_FILE):
+        return
+    try:
+        with open(ALERT_STATE_FILE) as f:
+            data = json.load(f)
+        _alert_state = {
+            k: datetime.fromisoformat(v)
+            for k, v in data.get("alert_state", {}).items()
+        }
+        _service_down = set(data.get("service_down", []))
+        log.info(
+            f"Loaded alert state: {len(_alert_state)} alerts, "
+            f"{len(_service_down)} down"
+        )
+    except (json.JSONDecodeError, ValueError, KeyError) as e:
+        log.warning(f"Corrupt alert_state.json, starting fresh: {e}")
+        _alert_state = {}
+        _service_down = set()
+
+
+def _save_alert_state():
+    """Persist current alert state to JSON file."""
+    try:
+        data = {
+            "alert_state": {
+                k: v.isoformat() for k, v in _alert_state.items()
+            },
+            "service_down": list(_service_down),
+        }
+        with open(ALERT_STATE_FILE, "w") as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        log.error(f"Failed to save alert state: {e}")
 
 
 def _should_alert(monitor_key):
@@ -270,6 +349,7 @@ def _record_alert(monitor_key):
     """Record that an alert was sent for this monitor."""
     _alert_state[monitor_key] = datetime.now()
     _service_down.add(monitor_key)
+    _save_alert_state()
 
 
 def _record_recovery(monitor_key):
@@ -277,17 +357,27 @@ def _record_recovery(monitor_key):
     was_down = monitor_key in _service_down
     _service_down.discard(monitor_key)
     _alert_state.pop(monitor_key, None)
+    if was_down:
+        _save_alert_state()
     return was_down
+
+
+# Load persisted state from last run
+_load_alert_state()
 
 
 # ---------------------------------------------------------------------------
 # Monitors (sensor function)
 # ---------------------------------------------------------------------------
 
+_monitor_config_cache = {}  # project_name -> last-good config dict
+
+
 def run_monitors():
     """
     Check project-specific monitors from heartbeat_config.yaml files.
     Monitors run even when paused (use send_telegram, not ping_claude).
+    Uses cached config if YAML parse fails.
     """
     projects_dir = Path(PROJECTS_DIR)
     if not projects_dir.exists():
@@ -300,16 +390,31 @@ def run_monitors():
         if not monitor_file.exists():
             continue
 
+        project_name = project_dir.name
         try:
             with open(monitor_file) as f:
                 project_config = yaml.safe_load(f)
+            _monitor_config_cache[project_name] = project_config
         except Exception as e:
-            log.error(f"Failed to read {monitor_file}: {e}")
-            continue
+            if project_name in _monitor_config_cache:
+                log.warning(
+                    f"Failed to read {monitor_file}: {e} "
+                    f"— using cached config"
+                )
+                if _should_alert(f"config:{project_name}"):
+                    send_telegram(
+                        f"⚠️ [{project_name}] Config parse error, "
+                        f"using cached config: {e}"
+                    )
+                    _record_alert(f"config:{project_name}")
+                project_config = _monitor_config_cache[project_name]
+            else:
+                log.error(f"Failed to read {monitor_file}: {e}")
+                continue
 
         for monitor in project_config.get("monitors", []):
             try:
-                run_single_monitor(monitor, project_dir.name)
+                run_single_monitor(monitor, project_name)
             except Exception as e:
                 log.error(f"Monitor '{monitor.get('name')}' error: {e}")
 
@@ -403,6 +508,12 @@ def run_single_monitor(monitor, project_name):
                 should_fire = safe_eval(
                     alert_condition, {"data": data, "response": response}
                 )
+            except TimeoutError:
+                log.error(
+                    f"Monitor '{name}' alert_condition timed out: "
+                    f"{alert_condition[:100]}"
+                )
+                return
             except Exception as e:
                 log.error(f"Monitor '{name}' alert_condition error: {e}")
                 return
@@ -455,25 +566,58 @@ def run_single_monitor(monitor, project_name):
 # System Health
 # ---------------------------------------------------------------------------
 
+def _cleanup_old_logs():
+    """Remove rotated heartbeat log files to free disk space."""
+    for suffix in (".1", ".2", ".3"):
+        path = LOG_FILE + suffix
+        if os.path.exists(path):
+            try:
+                os.remove(path)
+                log.info(f"Cleaned up old log: {path}")
+            except OSError as e:
+                log.error(f"Failed to remove {path}: {e}")
+
+
 def check_system_health():
-    """Check disk space and alert if running low."""
+    """Check disk space with progressive alert tiers (warning/alert/critical)."""
     try:
         usage = shutil.disk_usage("/")
         free_gb = usage.free / (1024**3)
-        monitor_key = "system:disk"
-        if free_gb < DISK_WARNING_GB:
-            if _should_alert(monitor_key):
-                total_gb = usage.total / (1024**3)
+        total_gb = usage.total / (1024**3)
+
+        if free_gb < 2:
+            key = "system:disk:critical"
+            if _should_alert(key):
+                send_telegram(
+                    f"🔴🔴 Disk nearly full: {free_gb:.1f} GB free "
+                    f"of {total_gb:.0f} GB — cleaning old logs"
+                )
+                _record_alert(key)
+                _cleanup_old_logs()
+        elif free_gb < 5:
+            key = "system:disk:alert"
+            if _should_alert(key):
+                send_telegram(
+                    f"🔴 Disk space critical: {free_gb:.1f} GB free "
+                    f"of {total_gb:.0f} GB"
+                )
+                _record_alert(key)
+        elif free_gb < DISK_WARNING_GB:
+            key = "system:disk:warning"
+            if _should_alert(key):
                 send_telegram(
                     f"⚠️ Low disk space: {free_gb:.1f} GB free "
                     f"of {total_gb:.0f} GB (threshold: {DISK_WARNING_GB} GB)"
                 )
-                _record_alert(monitor_key)
+                _record_alert(key)
         else:
-            if _record_recovery(monitor_key):
-                send_telegram(
-                    f"✅ Disk space recovered: {free_gb:.1f} GB free"
-                )
+            # Check recovery for all tiers
+            for tier in ("critical", "alert", "warning"):
+                if _record_recovery(f"system:disk:{tier}"):
+                    send_telegram(
+                        f"✅ Disk space recovered: {free_gb:.1f} GB free"
+                    )
+                    break  # One recovery message is enough
     except Exception as e:
         log.error(f"System health check error: {e}")
 
@@ -490,7 +634,7 @@ def watchdog_check():
     """
     Check if Claude Code session is alive in the factory tmux session.
     If missing for 3+ consecutive checks (~3 minutes), restart it.
-    Limits restarts to WATCHDOG_MAX_RESTARTS_PER_HOUR to avoid loops.
+    Uses exponential backoff and hard limit to avoid restart loops.
     """
     global _watchdog_failures
 
@@ -533,11 +677,29 @@ def _restart_claude_code(session_exists=True):
     """Restart Claude Code in the factory tmux session."""
     global _watchdog_failures
 
-    # Rate-limit restarts to prevent infinite loops
     now = datetime.now()
+
+    # Clean up old restarts (keep last hour)
     cutoff = now - timedelta(hours=1)
     _watchdog_restarts[:] = [t for t in _watchdog_restarts if t > cutoff]
 
+    # Exponential backoff between restarts
+    if _watchdog_restarts:
+        level = min(
+            len(_watchdog_restarts) - 1, len(_WATCHDOG_BACKOFF) - 1
+        )
+        min_gap = _WATCHDOG_BACKOFF[level]
+        elapsed = (now - _watchdog_restarts[-1]).total_seconds()
+        if elapsed < min_gap:
+            log.info(
+                f"Watchdog backoff: next restart in "
+                f"{min_gap - elapsed:.0f}s "
+                f"(level {level + 1}/{len(_WATCHDOG_BACKOFF)})"
+            )
+            _watchdog_failures = 0
+            return
+
+    # Hard limit: max restarts per hour
     if len(_watchdog_restarts) >= WATCHDOG_MAX_RESTARTS_PER_HOUR:
         log.error(
             f"Watchdog: {WATCHDOG_MAX_RESTARTS_PER_HOUR} restarts in the last "
@@ -552,6 +714,11 @@ def _restart_claude_code(session_exists=True):
             _record_alert("watchdog:restart_limit")
         _watchdog_failures = 0
         return
+
+    # Calculate uptime for notification
+    uptime = now - _start_time
+    hours, remainder = divmod(int(uptime.total_seconds()), 3600)
+    minutes = remainder // 60
 
     log.error("Claude Code session dead — restarting...")
 
@@ -579,7 +746,25 @@ def _restart_claude_code(session_exists=True):
             ],
             timeout=SUBPROCESS_TIMEOUT,
         )
-        send_telegram("🔧 Claude Code session crashed. Restarting...")
+
+        # Verify restart was successful
+        time.sleep(3)
+        verify = subprocess.run(
+            ["tmux", "list-windows", "-t", "factory"],
+            capture_output=True, text=True, timeout=SUBPROCESS_TIMEOUT,
+        )
+        if "claude" not in verify.stdout:
+            log.error(
+                "Restart verification failed: "
+                "claude window not found after restart"
+            )
+            return
+
+        send_telegram(
+            f"🔧 Claude Code restarted "
+            f"(uptime was {hours}h {minutes}m, "
+            f"{_watchdog_failures} consecutive failures)"
+        )
         _watchdog_failures = 0
         _watchdog_restarts.append(now)
     except subprocess.TimeoutExpired:
@@ -592,34 +777,40 @@ def _restart_claude_code(session_exists=True):
 # Schedule
 # ---------------------------------------------------------------------------
 
-schedule_config = config.get("schedule", {})
+def _register_schedule():
+    """Register all scheduled jobs. Called at startup and on config reload."""
+    sched = config.get("schedule", {})
 
-schedule.every().day.at(schedule_config.get("nightly", "22:00")).do(trigger_nightly)
-schedule.every().day.at(schedule_config.get("morning_brief", "07:00")).do(
-    trigger_morning_brief
-)
-schedule.every().day.at(schedule_config.get("discovery", "02:00")).do(
-    trigger_discovery
-)
-schedule.every().day.at(schedule_config.get("self_improvement", "23:00")).do(
-    trigger_self_improvement
-)
-schedule.every().day.at(schedule_config.get("retro", "10:00")).do(trigger_retro)
+    schedule.every().day.at(sched.get("nightly", "22:00")).do(trigger_nightly)
+    schedule.every().day.at(sched.get("morning_brief", "07:00")).do(
+        trigger_morning_brief
+    )
+    schedule.every().day.at(sched.get("discovery", "02:00")).do(
+        trigger_discovery
+    )
+    schedule.every().day.at(sched.get("self_improvement", "23:00")).do(
+        trigger_self_improvement
+    )
+    schedule.every().day.at(sched.get("retro", "10:00")).do(trigger_retro)
 
-monitor_interval = config.get("monitor_interval_seconds", 300)
-schedule.every(monitor_interval).seconds.do(run_monitors)
+    monitor_interval = config.get("monitor_interval_seconds", 300)
+    schedule.every(monitor_interval).seconds.do(run_monitors)
 
-health_interval = config.get("health_check_interval_seconds", 3600)
-schedule.every(health_interval).seconds.do(check_system_health)
+    health_interval = config.get("health_check_interval_seconds", 3600)
+    schedule.every(health_interval).seconds.do(check_system_health)
 
-schedule.every(60).seconds.do(watchdog_check)
+    schedule.every(60).seconds.do(watchdog_check)
+
+
+_register_schedule()
+
 
 # ---------------------------------------------------------------------------
-# Main
+# Signal Handlers
 # ---------------------------------------------------------------------------
-
 
 _shutdown = False
+_reload_requested = False
 
 
 def handle_signal(sig, frame):
@@ -628,11 +819,62 @@ def handle_signal(sig, frame):
     _shutdown = True
 
 
+def handle_sighup(sig, frame):
+    """Request config reload on SIGHUP (actual reload happens in main loop)."""
+    global _reload_requested
+    log.info("SIGHUP received — will reload config on next cycle")
+    _reload_requested = True
+
+
+def _do_config_reload():
+    """Reload configuration. Called from main loop, not from signal handler."""
+    global config, ALERT_COOLDOWN, DISK_WARNING_GB, PROJECTS_DIR, PAUSE_FILE
+    log.info("Reloading configuration...")
+    try:
+        new_config = load_config()
+    except SystemExit:
+        log.error("Config reload failed — keeping current config")
+        return
+
+    config = new_config
+    ALERT_COOLDOWN = config.get("alert_cooldown_seconds", 900)
+    DISK_WARNING_GB = config.get("disk_warning_gb", 10)
+    PROJECTS_DIR = os.path.expanduser(config.get("projects_dir", "~/projects"))
+    PAUSE_FILE = os.path.join(PROJECTS_DIR, ".factory_paused")
+    # Note: Telegram credentials are NOT reloaded (restart required)
+
+    # Re-register all scheduled jobs with new times
+    schedule.clear()
+    _register_schedule()
+
+    log.info("Configuration reloaded successfully")
+    send_telegram("🔄 Heartbeat config reloaded")
+
+
 signal.signal(signal.SIGINT, handle_signal)
 signal.signal(signal.SIGTERM, handle_signal)
+signal.signal(signal.SIGHUP, handle_sighup)
 
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 
 def main():
+    global _reload_requested
+
+    # Validate required environment variables (warn, don't crash)
+    required_vars = config.get("required_env_vars", [])
+    if required_vars:
+        missing = [v for v in required_vars if not os.environ.get(v)]
+        if missing:
+            log.warning(
+                f"Missing environment variables: {', '.join(missing)}"
+            )
+            log.warning("Some monitors may not work correctly.")
+
+    monitor_interval = config.get("monitor_interval_seconds", 300)
+
     log.info("=" * 60)
     log.info("Genesis Factory Heartbeat starting...")
     log.info(f"  Config: {CONFIG_PATH}")
@@ -640,11 +882,16 @@ def main():
     log.info(f"  Monitor interval: {monitor_interval}s")
     log.info(f"  Alert cooldown: {ALERT_COOLDOWN}s")
     log.info(f"  Disk warning: {DISK_WARNING_GB} GB")
+    if required_vars:
+        log.info(f"  Required env vars: {', '.join(required_vars)}")
     log.info("=" * 60)
 
     send_telegram("🏭 Genesis Factory Heartbeat started. All systems nominal.")
 
     while not _shutdown:
+        if _reload_requested:
+            _reload_requested = False
+            _do_config_reload()
         try:
             schedule.run_pending()
         except Exception as e:

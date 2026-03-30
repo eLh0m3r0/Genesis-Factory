@@ -28,6 +28,10 @@ Compile a concise status report across all factory operations.
    - Disk: `df -h /`
    - Uptime: `uptime`
 
+5. **Cost tracking** (if `~/projects/_factory/cost_log.md` exists):
+   - Sum tokens used in last 24h from cost_log.md
+   - Estimate remaining budget for the month
+
 ## Format
 
 Send via Telegram:

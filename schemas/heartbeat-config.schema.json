@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Genesis Factory Heartbeat Configuration",
+  "description": "Schema for heartbeat config.yaml validation",
+  "type": "object",
+  "required": ["telegram"],
+  "properties": {
+    "telegram": {
+      "type": "object",
+      "required": ["bot_token", "chat_id"],
+      "properties": {
+        "bot_token": {
+          "type": "string",
+          "pattern": "^[0-9]+:[A-Za-z0-9_-]+$",
+          "description": "Telegram Bot API token (format: 123456789:ABCdef...)"
+        },
+        "chat_id": {
+          "type": "string",
+          "description": "Telegram chat ID for notifications"
+        }
+      }
+    },
+    "schedule": {
+      "type": "object",
+      "properties": {
+        "nightly": {
+          "type": "string",
+          "pattern": "^[0-2][0-9]:[0-5][0-9]$",
+          "default": "22:00",
+          "description": "Nightly cycle trigger time (HH:MM, local timezone)"
+        },
+        "morning_brief": {
+          "type": "string",
+          "pattern": "^[0-2][0-9]:[0-5][0-9]$",
+          "default": "07:00"
+        },
+        "discovery": {
+          "type": "string",
+          "pattern": "^[0-2][0-9]:[0-5][0-9]$",
+          "default": "02:00"
+        },
+        "self_improvement": {
+          "type": "string",
+          "pattern": "^[0-2][0-9]:[0-5][0-9]$",
+          "default": "23:00"
+        },
+        "retro": {
+          "type": "string",
+          "pattern": "^[0-2][0-9]:[0-5][0-9]$",
+          "default": "10:00"
+        }
+      }
+    },
+    "monitor_interval_seconds": {
+      "type": "integer",
+      "minimum": 30,
+      "maximum": 3600,
+      "default": 300,
+      "description": "How often to run project monitors (seconds)"
+    },
+    "projects_dir": {
+      "type": "string",
+      "default": "~/projects",
+      "description": "Path to projects directory"
+    },
+    "alert_cooldown_seconds": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 86400,
+      "default": 900,
+      "description": "Minimum seconds between repeated alerts for same monitor"
+    },
+    "disk_warning_gb": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 10,
+      "description": "Free disk space threshold for warning alerts (GB)"
+    },
+    "health_check_interval_seconds": {
+      "type": "integer",
+      "minimum": 60,
+      "maximum": 86400,
+      "default": 3600
+    },
+    "required_env_vars": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Environment variables to check at startup"
+    }
+  }
+}

@@ -22,23 +22,37 @@ Given a story from BACKLOG.md, design the technical implementation.
    - API patterns (how are routes/endpoints structured?)
 4. Design the implementation.
 
+## Before Starting
+
+Read the project's AGENTS.md for known patterns, selectors, anti-patterns,
+and failure modes specific to this project. Apply these learnings to your design.
+
 ## Output
 
-Update the story's `design_notes` field in BACKLOG.md:
+Update the story's `design_notes` field in BACKLOG.md. ALL fields are required
+(write "N/A" with explanation if truly not applicable):
 
 ```
 - **design_notes**:
-  - Files to create: {list}
-  - Files to modify: {list with what changes}
-  - DB migrations: {yes/no, what changes}
-  - New routes/endpoints: {list}
-  - Template/UI changes: {description}
-  - Test plan:
-    - Unit: {what to test}
-    - Integration: {what to test}
-    - UAT scenarios: {browser test steps}
-  - Risks: {what could go wrong}
-  - Dependencies: {external libs, APIs}
+  - files_to_create:
+    - {path}: {purpose}
+  - files_to_modify:
+    - {path}: {what changes and why}
+  - db_migrations: {yes/no — if yes, what changes, reversible?}
+  - new_routes: {list of endpoints with methods, or N/A}
+  - ui_changes: {description, or N/A}
+  - test_plan:
+    - unit: {specific functions/classes to test}
+    - integration: {specific flows to test}
+    - uat_scenarios:
+      1. {step-by-step browser test}
+      2. {step-by-step browser test}
+  - risks:
+    - {what could go wrong}: {mitigation}
+  - dependencies:
+    - {external lib/API}: {version, why needed}
+  - env_vars_needed: {list, or none}
+  - estimated_effort: {S/M/L} — {justification}
 ```
 
 ## Rules
@@ -49,3 +63,4 @@ Update the story's `design_notes` field in BACKLOG.md:
 - **Consider rollback.** DB migrations must be reversible.
 - **Consider multi-tenancy.** If the project is multi-tenant, ensure isolation.
 - **Explicitly list files.** Dev teammate needs to know exactly what to touch.
+- **All output fields mandatory.** Incomplete designs cause stuck stories.

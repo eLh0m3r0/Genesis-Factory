@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Backlog Story",
+  "description": "Schema for stories in BACKLOG.md (used for validation, not enforcement)",
+  "type": "object",
+  "required": ["status", "priority", "effort", "acceptance_criteria"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Z]+-[0-9]+$",
+      "description": "Story ID (e.g., PROJ-001)"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 5
+    },
+    "status": {
+      "type": "string",
+      "enum": ["ready", "in_progress", "pr_open", "done", "stuck", "blocked", "rejected"]
+    },
+    "priority": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5,
+      "description": "1 = highest, 5 = lowest"
+    },
+    "effort": {
+      "type": "string",
+      "enum": ["S", "M", "L", "XL"],
+      "description": "S=hours, M=day, L=2-3 days, XL=week+"
+    },
+    "score": {
+      "type": "number",
+      "description": "Calculated: (impact*3 + urgency*2 - risk) / effort_multiplier"
+    },
+    "why": {
+      "type": "string",
+      "description": "One-sentence business justification"
+    },
+    "acceptance_criteria": {
+      "type": "array",
+      "minItems": 2,
+      "items": { "type": "string" },
+      "description": "Specific, testable criteria"
+    },
+    "blocked_by": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Story IDs that must be completed first"
+    },
+    "unblocks": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Story IDs that depend on this one"
+    },
+    "design_notes": {
+      "type": "object",
+      "description": "Filled by architect agent"
+    },
+    "pr": {
+      "type": "string",
+      "description": "PR number/URL after creation"
+    },
+    "learnings": {
+      "type": "string",
+      "description": "Notes after completion"
+    },
+    "github_issue": {
+      "type": "string",
+      "description": "Linked GitHub issue number"
+    },
+    "retry_count": {
+      "type": "integer",
+      "description": "Number of times this story has been retried"
+    }
+  }
+}
