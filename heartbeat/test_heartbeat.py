@@ -755,8 +755,26 @@ class TestScheduleRegistration:
         import schedule
         schedule.clear()
         factory_heartbeat._register_schedule()
-        # Should have: 5 daily + monitors + health + watchdog = 8 jobs
-        assert len(schedule.get_jobs()) == 8
+        # Should have: build(1+) + 4 daily + monitors + health + watchdog >= 8
+        assert len(schedule.get_jobs()) >= 8
+
+    def test_multiple_build_times(self):
+        import factory_heartbeat
+        import schedule
+        original_config = factory_heartbeat.config
+        factory_heartbeat.config = {
+            **original_config,
+            "schedule": {"build": ["10:00", "14:00", "22:00"]},
+        }
+        schedule.clear()
+        try:
+            factory_heartbeat._register_schedule()
+            # 3 build + 4 daily + monitors + health + watchdog = 10
+            assert len(schedule.get_jobs()) == 10
+        finally:
+            factory_heartbeat.config = original_config
+            schedule.clear()
+            factory_heartbeat._register_schedule()
 
 
 class TestLogCleanup:

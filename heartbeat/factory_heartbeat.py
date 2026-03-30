@@ -245,12 +245,13 @@ def ping_claude(message):
 # Scheduled Triggers (clock function)
 # ---------------------------------------------------------------------------
 
-def trigger_nightly():
-    """22:00 Mon-Fri: trigger nightly development cycle."""
+def trigger_build():
+    """Trigger a build cycle at scheduled time (Mon-Fri only)."""
     if datetime.now().weekday() >= 5:
         return
+    now = datetime.now().strftime("%H:%M")
     ping_claude(
-        "🌙 It's 22:00 — nightly cycle time. "
+        f"🔨 Build cycle ({now}). "
         "Run /nightly to pick the top story and implement it."
     )
 
@@ -781,7 +782,13 @@ def _register_schedule():
     """Register all scheduled jobs. Called at startup and on config reload."""
     sched = config.get("schedule", {})
 
-    schedule.every().day.at(sched.get("nightly", "22:00")).do(trigger_nightly)
+    # Build cycles: single time or list of times (backward compat: "nightly")
+    build_times = sched.get("build", sched.get("nightly", "22:00"))
+    if isinstance(build_times, str):
+        build_times = [build_times]
+    for t in build_times:
+        schedule.every().day.at(t).do(trigger_build)
+
     schedule.every().day.at(sched.get("morning_brief", "07:00")).do(
         trigger_morning_brief
     )

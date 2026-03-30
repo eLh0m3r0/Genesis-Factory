@@ -11,7 +11,12 @@ telegram:
 # Schedule times in 24-hour format (HH:MM), LOCAL timezone of the machine.
 # The heartbeat uses the system clock — no UTC conversion needed.
 schedule:
-  nightly: "22:00"         # Mon-Fri: pick top story, implement, test, merge
+  # Build cycles — when to look for stories and build them (Mon-Fri).
+  # Single time or list of times. More times = more stories per day.
+  build: "22:00"
+  # build: ["10:00", "14:00", "22:00"]   # 3x daily
+  # build: ["09:00", "12:00", "15:00", "18:00", "22:00"]  # every 3 hours
+
   morning_brief: "07:00"   # Daily: status report sent to Telegram
   discovery: "02:00"       # Sundays only: competitor research, new stories
   self_improvement: "23:00" # Fridays only: factory improves itself

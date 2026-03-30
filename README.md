@@ -119,12 +119,21 @@ All intelligence lives in Claude Code — the heartbeat just provides triggers.
 
 ## Daily Rhythm
 
+Build cycles are configurable — from once nightly to every few hours:
+
+```yaml
+# config.yaml
+schedule:
+  build: ["10:00", "14:00", "22:00"]   # 3 stories/day
+  # build: "22:00"                      # once nightly (default)
+```
+
 | Time | What | Your involvement |
 |------|------|-----------------|
 | 02:00 Sun | Discovery: competitor research, new stories | None |
 | 07:00 Daily | Morning brief sent to Telegram | Read on phone (2 min) |
 | 10:00 Sun | Retrospective: analyze cycles, update learnings | None |
-| 22:00 Mon-Fri | Nightly: implement top story, test, merge, deploy | None |
+| Configurable | Build cycles: implement, test, merge, deploy | None |
 | 23:00 Fri | Self-improvement: factory upgrades itself | None |
 | Anytime | Market alerts, deploy notifications | Glance at Telegram |
 
@@ -132,7 +141,7 @@ All intelligence lives in Claude Code — the heartbeat just provides triggers.
 
 | Item | Monthly |
 |------|---------|
-| Claude Max subscription | $100 |
+| Claude subscription (Max or higher) | from $100 |
 | GitHub | Free |
 | Telegram | Free |
 | Docker | Free |

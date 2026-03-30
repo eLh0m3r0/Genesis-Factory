@@ -114,13 +114,13 @@ When spawning Agent Teams for implementation:
 
 ## Cost Awareness
 
-Running on Claude Max $100/month plan with token limits.
+Be mindful of token usage regardless of the subscription plan.
 - Use Sonnet for subagents and routine tasks
 - Use Opus for main reasoning, complex implementation, architectural decisions
 - Use `/effort medium` for routine tasks, `/effort high` for complex implementation
   — this controls how much the model reasons internally and saves tokens
 - If rate-limited: slow down, report to Telegram, prioritize smaller tasks
-- Track approximate costs mentally — if a nightly cycle seems expensive, note it
+- Track approximate costs mentally — if a build cycle seems expensive, note it
 - Prefer /batch for codebase-wide changes (parallel but efficient)
 
 ## In-Session Monitoring
