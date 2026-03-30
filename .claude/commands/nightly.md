@@ -1,10 +1,17 @@
 ---
-description: "Full nightly development cycle — pick top story and build it. Triggered by heartbeat at 22:00."
+description: "Build cycle — pick stories and build them. Triggered by heartbeat."
 ---
 
-# Nightly Development Cycle
+# Build Cycle
 
-This is the main autonomous cycle, typically triggered by the heartbeat at 22:00.
+The main autonomous cycle, triggered by the heartbeat at configured times.
+
+## Build Modes
+
+Check the trigger message for the mode:
+
+- **Single** (default): Build one story, then stop.
+- **Continuous**: Keep building stories until backlog is empty or rate-limited.
 
 ## Process
 
@@ -23,14 +30,24 @@ This is the main autonomous cycle, typically triggered by the heartbeat at 22:00
    - If NO stories available: run /discover for least-researched project
    - If everything is caught up: run /upgrade (self-improvement)
 
-4. After completing one story, evaluate:
-   - Is there time for another? (check rate limits, time)
-   - If yes and a small (S) story is available: do another
-   - If no: send summary and stop
+4. After completing a story:
 
-5. Report nightly summary to Telegram:
-   "🌙 Nightly cycle complete:
+   **Single mode**: send summary and stop.
+
+   **Continuous mode**:
+   - Check for rate-limit errors. If rate-limited:
+     Report to Telegram: "⏸️ Rate-limited after {N} stories. Will resume next cycle."
+     Stop. The next scheduled build trigger picks up automatically.
+   - Check backlog for more "ready" stories.
+   - If stories available: go back to step 3.
+   - If backlog empty:
+     Report: "✅ Backlog clear — {N} stories completed this cycle."
+     Stop.
+
+5. Report build cycle summary to Telegram:
+   "🔨 Build cycle complete:
     ✅ [{ID}] {title} — merged
     ⚠️ [{ID}] {title} — stuck (selector changed)
-    📊 Next in backlog: [{ID}] {title}
-    💰 Estimated token usage: moderate"
+    📊 Stories this cycle: {N} done, {M} stuck
+    📋 Remaining in backlog: {R} ready
+    💰 Estimated token usage: {estimate}"

@@ -250,10 +250,18 @@ def trigger_build():
     if datetime.now().weekday() >= 5:
         return
     now = datetime.now().strftime("%H:%M")
-    ping_claude(
-        f"🔨 Build cycle ({now}). "
-        "Run /nightly to pick the top story and implement it."
-    )
+    build_mode = config.get("schedule", {}).get("build_mode", "single")
+    if build_mode == "continuous":
+        ping_claude(
+            f"🔨 Build cycle ({now}) — continuous mode. "
+            "Keep building stories until backlog is empty or rate-limited. "
+            "Run /nightly."
+        )
+    else:
+        ping_claude(
+            f"🔨 Build cycle ({now}). "
+            "Run /nightly to pick the top story and implement it."
+        )
 
 
 def trigger_morning_brief():

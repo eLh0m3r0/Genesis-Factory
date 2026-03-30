@@ -17,6 +17,11 @@ schedule:
   # build: ["10:00", "14:00", "22:00"]   # 3x daily
   # build: ["09:00", "12:00", "15:00", "18:00", "22:00"]  # every 3 hours
 
+  # How many stories per build cycle:
+  # "single"     — one story, then stop (default)
+  # "continuous" — keep building until backlog empty or rate-limited
+  build_mode: "single"
+
   morning_brief: "07:00"   # Daily: status report sent to Telegram
   discovery: "02:00"       # Sundays only: competitor research, new stories
   self_improvement: "23:00" # Fridays only: factory improves itself
