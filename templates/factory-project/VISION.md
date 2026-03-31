@@ -16,3 +16,4 @@ fewer failures, lower costs.
 - Heartbeat: new monitor types, better error recovery
 
 ## project_weight: 1
+## skip_phases: []

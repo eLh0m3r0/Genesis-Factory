@@ -12,6 +12,7 @@ Show all managed projects with status and health.
 2. For each project, gather:
    - Name and title from VISION.md
    - `project_weight` from VISION.md (default: 1)
+   - `skip_phases` from VISION.md (default: [])
    - Story counts from BACKLOG.md: ready / in_progress / done / stuck
    - Last commit: `git log -1 --format="%ar"` (age)
    - Health indicator based on:
@@ -30,7 +31,7 @@ Show all managed projects with status and health.
    4 ready, 1 in progress, 12 done, 0 stuck
    Last: "Add user dashboard" (2 hours ago)
 
-🟡 side-project (weight: 2)
+🟡 side-project (weight: 2, skip: uat, auto_deploy)
    0 ready, 0 in progress, 3 done, 1 stuck
    Last: "Fix login page" (3 days ago)
 

@@ -7,9 +7,12 @@ argument-hint: "[project-name | all]"
 
 ## If project name provided:
 Run discovery for that specific project.
+If that project has `discovery` in `skip_phases` (VISION.md):
+  Warn: "{project} has discovery in skip_phases. Run anyway? (Y/n)"
 
 ## If "all" or no argument:
-Run discovery for ALL projects in ~/projects/ (excluding _factory).
+Run discovery for all projects in ~/projects/ (excluding _factory).
+Skip projects that have `discovery` in their VISION.md `skip_phases`.
 
 ## Process (per project)
 

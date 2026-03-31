@@ -6,7 +6,7 @@ description: "Run retrospective — analyze recent cycles and update learnings."
 
 Spawn the retrospective agent to analyze the last 7 days of factory activity.
 
-For each project with recent activity:
+For each project with recent activity (skip projects with `retro` in VISION.md `skip_phases`):
 1. Review git log and merged PRs
 2. Identify success patterns and failure patterns  
 3. Update AGENTS.md with new learnings

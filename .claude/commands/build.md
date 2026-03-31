@@ -13,6 +13,12 @@ If no argument: pick the highest-priority "ready" story across all projects.
   - Prefer stories in "ready" status.
   - Skip stories in "stuck" status.
 
+## Phase Config
+
+Before starting, read the project's VISION.md and parse `skip_phases`.
+Missing or empty `skip_phases` means all phases active. Steps below
+marked with ⚙️ are skippable via phase config.
+
 ## Process
 
 1. **Pre-build validation** — before starting, verify:
@@ -61,28 +67,32 @@ If no argument: pick the highest-priority "ready" story across all projects.
    gh run watch   # wait for CI to complete
    ```
 
-7. **Verification** (after CI passes):
-   - Spawn uat-tester subagent (Playwright on staging URL if configured)
-   - Spawn security-reviewer subagent (scan diff)
-   - Both post results as PR comments
+7. ⚙️ **Verification** (after CI passes):
+   - If `uat` NOT in skip_phases: spawn uat-tester subagent (Playwright)
+     Else: add PR comment "UAT skipped per project phase config."
+   - If `security_review` NOT in skip_phases: spawn security-reviewer subagent
+     Else: add PR comment "Security review skipped per project phase config."
 
-8. **Auto-merge** (if ALL green):
+8. ⚙️ **Auto-merge** (if ALL non-skipped checks green):
+   - If `auto_merge` in skip_phases: report to Telegram
+     "PR #{N} ready for manual merge." — do NOT merge. STOP here.
+   - Skipped phases (uat, security_review) count as "passed" for merge decision.
    ```bash
    gh pr merge --auto --squash
    ```
 
-9. **Post-deploy** (after merge triggers deploy):
-   - Wait for deploy workflow to complete
-   - Run smoke test against production URL if configured
-   - If smoke fails: alert Telegram IMMEDIATELY
+9. ⚙️ **Post-deploy** (after merge triggers deploy):
+   - If `auto_deploy` in skip_phases: skip this entire step.
+   - Otherwise: wait for deploy, run smoke test, alert on failure.
 
 10. **Wrap up**:
     - Update story status to "done" in BACKLOG.md
     - Record learnings in story's `learnings` field
     - Report to Telegram: "✅ [{STORY-ID}] {title} — merged and deployed"
 
-11. **Auto-document** (after successful merge):
-    - Spawn doc-writer subagent to update project docs
+11. ⚙️ **Auto-document** (after successful merge):
+    - If `auto_docs` in skip_phases: skip this step.
+    - Otherwise: spawn doc-writer subagent to update project docs
     - Only if the story changes user-facing functionality or API
 
 12. **Cost estimate**:

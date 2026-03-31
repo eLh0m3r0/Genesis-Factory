@@ -35,6 +35,7 @@ ls ~/projects/*/VISION.md   # discover all projects
 
 Each project follows the standard contract:
 - VISION.md — human-written direction (REQUIRED)
+  - Includes `project_weight` and `skip_phases` for factory behavior control
 - CLAUDE.md — technical context (REQUIRED, you help create it)
 - BACKLOG.md — auto-generated stories with acceptance criteria
 - RESEARCH.md — competitive intelligence, market analysis
@@ -62,6 +63,8 @@ Merge to main automatically when ALL conditions are met:
 4. Security reviewer found no CRITICAL issues
 
 If ANY condition fails: do NOT merge. Report to Telegram with details.
+If a project's VISION.md has `uat` or `security_review` in `skip_phases`,
+those conditions are considered satisfied for that project.
 
 ## Auto-Deploy Policy
 
@@ -69,6 +72,7 @@ If ANY condition fails: do NOT merge. Report to Telegram with details.
 - After deploy: run smoke test against production URL if configured
 - If smoke test fails: report to Telegram IMMEDIATELY. Do NOT auto-revert.
   Wait for human decision (reverting can be worse than the bug).
+- If a project has `auto_deploy` in `skip_phases`: skip deploy verification.
 
 ## Communication (Telegram)
 
@@ -171,6 +175,7 @@ interpret it as a natural language direction. Classify the intent and act:
 | **Add rule** | "Don't use jQuery" | Add to CLAUDE.md Critical Rules |
 | **Change priority** | "Set project-x weight to 5" | Update VISION.md project_weight |
 | **Pause project** | "Pause side-project" | Set weight to 0 or create flag |
+| **Skip phase** | "Skip UAT for project-x" | Update skip_phases in VISION.md |
 | **Ask question** | "How many stories are ready?" | Query and respond, don't modify |
 
 ### Scope Intelligence

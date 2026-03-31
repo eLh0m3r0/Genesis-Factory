@@ -32,6 +32,7 @@ Check `heartbeat/alert_state.json` for currently-down services.
 ### 4. Per-Project Status
 For each project in `~/projects/*/VISION.md`:
 - Story counts from BACKLOG.md: ready / in_progress / done / stuck
+   - `skip_phases` from VISION.md (show if non-empty)
 - Last commit: `git -C ~/projects/{name} log -1 --format="%h %s (%ar)"`
 - Open PRs: `gh pr list --repo {owner}/{repo} --state open --json number,title`
 - Monitor status from heartbeat_config.yaml (if configured)

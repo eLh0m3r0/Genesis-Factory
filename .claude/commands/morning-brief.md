@@ -41,7 +41,7 @@ Send via Telegram:
 
 Projects:
 • {project1}: {done_24h} shipped, {ready} in backlog, {stuck} stuck
-• {project2}: {done_24h} shipped, {ready} in backlog
+• {project2}: {done_24h} shipped, {ready} in backlog{, skip: {phases} if any}
 
 PRs:
 • ✅ #{N} {title} — merged {time}

@@ -27,6 +27,15 @@
      3 = normal rotation with other projects
      1 = only when nothing else is ready -->
 
+## skip_phases: []
+<!-- Phases the factory will skip for this project.
+     Valid: discovery, uat, security_review, auto_merge, auto_deploy, auto_docs, retro
+     Default: [] (all phases active)
+     Examples:
+       skip_phases: [uat, auto_deploy]         — CLI tool, no web UI, manual deploy
+       skip_phases: [discovery]                 — backlog managed manually
+       skip_phases: [auto_merge, security_review] — human reviews all PRs -->
+
 <!--
 EXAMPLE (delete this block when filling in):
 
@@ -55,4 +64,5 @@ Czech labor law (sick leave, vacation accrual, public holidays). We fill this ga
 - Attendance Cloud: https://attendancecloud.com — generic, no Czech law support
 
 ## project_weight: 4
+## skip_phases: []
 -->

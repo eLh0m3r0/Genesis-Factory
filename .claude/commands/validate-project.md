@@ -23,8 +23,15 @@ Check each of these and report status:
 
 ### VISION.md Quality
 - [ ] `project_weight` is set (1-5)
+- [ ] `skip_phases` is set (list or empty `[]`) — warn if missing, default to `[]`
+- [ ] All values in `skip_phases` are valid phase names
 - [ ] Has at least 3 sentences of direction
 - [ ] Technical priorities are listed
+
+### Phase Config Warnings
+- [ ] If `uat` skipped and CLAUDE.md has UAT flows: warn about dead config
+- [ ] If `security_review` skipped AND `auto_merge` active: warn "auto-merge without security review"
+- [ ] If `discovery` skipped: RESEARCH.md staleness is acceptable (don't flag)
 
 ### CLAUDE.md Quality
 - [ ] Stack/technologies are listed

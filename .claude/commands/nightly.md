@@ -49,7 +49,10 @@ At the end, write/overwrite `~/projects/_factory/last_cycle.md`:
    - Scan ~/projects/*/BACKLOG.md for "ready" stories
    - Skip stories with `blocked_by` fields where the blocking story is not "done"
    - If stories available: run /build on the top unblocked one
-   - If NO stories available: run /discover for least-researched project
+   - If NO stories available:
+     - Find projects NOT skipping discovery (check VISION.md skip_phases)
+     - If eligible projects: run /discover for least-researched eligible project
+     - If none eligible: run /upgrade (self-improvement)
    - If everything is caught up: run /upgrade (self-improvement)
 
 5. After completing a story:

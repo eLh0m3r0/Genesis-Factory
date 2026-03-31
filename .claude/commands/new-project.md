@@ -24,7 +24,11 @@ Create a new project in ~/projects/ using the factory templates.
    - "Does it have a database? If so, what type?"
    - "Where will it be deployed? (e.g., Vercel, Railway, VPS, Docker)"
    - "Any specific requirements or constraints?"
-7. Fill in VISION.md based on answers (direction, priorities, constraints).
+   - "Which factory phases should I skip? All are ON by default:
+     discovery, uat, security_review, auto_merge, auto_deploy, auto_docs, retro.
+     For example, a CLI tool might skip uat and auto_deploy.
+     Say 'all active' for defaults."
+7. Fill in VISION.md based on answers (direction, priorities, constraints, skip_phases).
 8. Create CLAUDE.md with technical context:
    - Stack section based on tech stack answer
    - Architecture section with sensible defaults for the stack
