@@ -24,7 +24,7 @@ You: (next morning, on phone) "✅ 2 stories shipped. 1 stuck. Here's why..."
 ## Quickstart
 
 ```bash
-git clone https://github.com/youruser/genesis-factory.git
+git clone https://github.com/eLh0m3r0/Genesis-Factory.git
 cd genesis-factory
 claude
 ```
